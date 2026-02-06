@@ -1,15 +1,21 @@
+using Microsoft.EntityFrameworkCore;
+using seragenda;
+using seragenda.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddDbContext<AgendaContext>(options =>
+    options.UseNpgsql(connectionString));
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// 2. Services
+builder.Services.AddScoped<ScolaireScraper>();
+builder.Services.AddControllers(); 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -17,9 +23,14 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.MapControllers(); 
 
-app.UseAuthorization();
+app.MapGet("/", () => "Serveur API en ligne ! Va sur /api/values pour voir les données.");
 
-app.MapControllers();
+app.MapGet("/api/update-scolaire", async (ScolaireScraper scraper) =>
+{
+    await scraper.DemarrerScraping();
+    return Results.Ok("Scraping terminé ! La base de données est à jour.");
+});
 
 app.Run();

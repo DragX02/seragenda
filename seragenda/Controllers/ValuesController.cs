@@ -1,33 +1,26 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Npgsql;
-using Dapper;
+﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using seragenda.Models;
 
-namespace seragenda.Controllers
-{
+namespace seragenda.Controllers;
 
-    [Route("api/[controller")]
-    [ApiController]
-    public class ValuesController : ControllerBase
+[Route("api/[controller]")]
+[ApiController]
+public class ValuesController : ControllerBase
+{
+    private readonly AgendaContext _context;
+
+    public ValuesController(AgendaContext context)
     {
-        private readonly IConfiguration _config;
-        public ValuesController(IConfiguration config)
-        {
-            _config = config;
-        }
-        [HttpGet]
-        public IActionResult GetCours()
-        {
-            var ConString = _config.GetConnectionString("DefaultConnection");
-            using (var connection = new NpgsqlConnection(ConString))
-            {
-                var sql = " SELECT * FROM cours";
-                var maList = connection.Query<Cours>(sql).ToList();
-                return Ok(maList);
-            }
-        }
+        _context = context;
     }
 
-
-}   
+    [HttpGet]
+    public async Task<IActionResult> Get()
+    {
+        var donnees = await _context.CalendrierScolaires
+                                    .OrderBy(d => d.DateDebut)
+                                    .ToListAsync();
+        return Ok(donnees);
+    }
+}
