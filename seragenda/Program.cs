@@ -25,7 +25,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.MapControllers(); 
 
-app.MapGet("/", () => "Serveur API en ligne ! Va sur /api/values pour voir les données.");
+app.MapGet("/", () => "Serveur I en ligne ! Va sur /api/values pour voir les données.");
 
 app.MapGet("/api/update-scolaire", async (ScolaireScraper scraper) =>
 {
