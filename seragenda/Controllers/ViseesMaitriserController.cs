@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using seragenda.Models;
 
@@ -6,6 +7,7 @@ namespace seragenda.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
+[Authorize]
 public class ViseesMaitriserController : ControllerBase
 {
     private readonly AgendaContext _context;

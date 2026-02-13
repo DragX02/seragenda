@@ -53,14 +53,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.MapControllers(); 
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
 
-app.MapGet("/", () => "Serveur I en ligne ! Va sur /api/values pour voir les donn�es.");
+app.MapGet("/", () => "Serveur I en ligne !");
 
 app.MapGet("/api/update-scolaire", async (ScolaireScraper scraper) =>
 {
     await scraper.DemarrerScraping();
-    return Results.Ok("Scraping termin� ! La base de donn�es est � jour.");
-});
+    return Results.Ok("Scraping terminé !");
+}).RequireAuthorization();
 
 app.Run();
