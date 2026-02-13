@@ -198,10 +198,9 @@ namespace seragenda.Controllers
 
         private async Task<IActionResult> HandleOAuthCallback(string provider)
         {
+            // Les claims sont stockees dans le cookie par le middleware OAuth
             var authenticateResult = await HttpContext.AuthenticateAsync(
-                provider == "Google"
-                    ? GoogleDefaults.AuthenticationScheme
-                    : MicrosoftAccountDefaults.AuthenticationScheme);
+                Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme);
 
             if (!authenticateResult.Succeeded)
             {

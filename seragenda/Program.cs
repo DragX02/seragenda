@@ -81,7 +81,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection(); // Desactive - le serveur tourne en HTTP
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
