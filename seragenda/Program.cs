@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 var builder = WebApplication.CreateBuilder(args);
 
 var secretkey = builder.Configuration["JwtSettings:SecretKey"];
@@ -53,12 +55,12 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.MapControllers(); 
 
-app.MapGet("/", () => "Serveur I en ligne ! Va sur /api/values pour voir les données.");
+app.MapGet("/", () => "Serveur I en ligne ! Va sur /api/values pour voir les donnï¿½es.");
 
 app.MapGet("/api/update-scolaire", async (ScolaireScraper scraper) =>
 {
     await scraper.DemarrerScraping();
-    return Results.Ok("Scraping terminé ! La base de données est à jour.");
+    return Results.Ok("Scraping terminï¿½ ! La base de donnï¿½es est ï¿½ jour.");
 });
 
 app.Run();

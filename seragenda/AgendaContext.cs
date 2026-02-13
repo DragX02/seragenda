@@ -408,6 +408,14 @@ public partial class AgendaContext : DbContext
                 .HasMaxLength(20)
                 .HasDefaultValueSql("'PROF'::character varying")
                 .HasColumnName("role_systeme");
+
+            entity.Property(e => e.AuthProvider)
+                .HasMaxLength(50)
+                .HasColumnName("auth_provider");
+
+            entity.Property(e => e.IsConfirmed)
+                .HasColumnName("is_confirmed")
+                .HasDefaultValue(false);
         });
 
         modelBuilder.Entity<UtilisationChapitre>(entity =>

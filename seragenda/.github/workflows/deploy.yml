@@ -1,0 +1,33 @@
+name: Auto-Update Agenda API
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish
+        run: dotnet publish ./seragenda/seragenda.csproj -c Release -o ./publish
+
+      - name: Update Service
+        run: |
+          # Sauvegarde le fichier de configuration de production
+          sudo cp /var/www/serapi/appsettings.Production.json /tmp/appsettings.Production.json.backup 2>/dev/null || true
+
+          # Copie les fichiers vers le dossier final
+          sudo cp -r ./publish/* /var/www/serapi/
+
+          # Restaure le fichier de configuration de production
+          sudo cp /tmp/appsettings.Production.json.backup /var/www/serapi/appsettings.Production.json 2>/dev/null || true
+
+          # Redémarre l'API pour appliquer les changements
+          sudo systemctl restart serapi.service
