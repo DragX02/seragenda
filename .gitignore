@@ -367,5 +367,3 @@ FodyWeavers.xsd
 **/appsettings.Development.json
 **/appsettings.*.json
 !**/appsettings.json
-DEPLOYMENT_GUIDE.md
-OAUTH_SETUP.md
