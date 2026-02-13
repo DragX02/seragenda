@@ -1,5 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authentication.MicrosoftAccount;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using seragenda.Models;
@@ -155,6 +158,98 @@ namespace seragenda.Controllers
                 Nom = user.Nom,
                 Prenom = user.Prenom
             });
+        }
+
+        // ===== GOOGLE OAUTH =====
+        [HttpGet("google")]
+        public IActionResult GoogleLogin()
+        {
+            var properties = new AuthenticationProperties
+            {
+                RedirectUri = Url.Action(nameof(GoogleCallback)),
+                Items = { { "scheme", GoogleDefaults.AuthenticationScheme } }
+            };
+            return Challenge(properties, GoogleDefaults.AuthenticationScheme);
+        }
+
+        [HttpGet("google-callback")]
+        public async Task<IActionResult> GoogleCallback()
+        {
+            return await HandleOAuthCallback("Google");
+        }
+
+        // ===== MICROSOFT/OUTLOOK OAUTH =====
+        [HttpGet("microsoft")]
+        public IActionResult MicrosoftLogin()
+        {
+            var properties = new AuthenticationProperties
+            {
+                RedirectUri = Url.Action(nameof(MicrosoftCallback)),
+                Items = { { "scheme", MicrosoftAccountDefaults.AuthenticationScheme } }
+            };
+            return Challenge(properties, MicrosoftAccountDefaults.AuthenticationScheme);
+        }
+
+        [HttpGet("microsoft-callback")]
+        public async Task<IActionResult> MicrosoftCallback()
+        {
+            return await HandleOAuthCallback("Microsoft");
+        }
+
+        private async Task<IActionResult> HandleOAuthCallback(string provider)
+        {
+            var authenticateResult = await HttpContext.AuthenticateAsync(
+                provider == "Google"
+                    ? GoogleDefaults.AuthenticationScheme
+                    : MicrosoftAccountDefaults.AuthenticationScheme);
+
+            if (!authenticateResult.Succeeded)
+            {
+                return Redirect("agendaprof://auth?error=oauth_failed");
+            }
+
+            var claims = authenticateResult.Principal?.Claims;
+            var email = claims?.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+            var nom = claims?.FirstOrDefault(c => c.Type == ClaimTypes.Surname)?.Value ?? "";
+            var prenom = claims?.FirstOrDefault(c => c.Type == ClaimTypes.GivenName)?.Value ?? "";
+
+            if (string.IsNullOrEmpty(email))
+            {
+                return Redirect("agendaprof://auth?error=no_email");
+            }
+
+            // Chercher ou creer l'utilisateur
+            var user = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.Email == email);
+
+            if (user == null)
+            {
+                // Creer un nouveau compte
+                user = new Utilisateur
+                {
+                    Email = email.Trim().ToLower(),
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString()),
+                    Nom = InputValidator.SanitizeInput(nom),
+                    Prenom = InputValidator.SanitizeInput(prenom),
+                    RoleSysteme = "PROF",
+                    CreatedAt = DateTime.UtcNow,
+                    IsConfirmed = true,
+                    AuthProvider = provider
+                };
+
+                _context.Utilisateurs.Add(user);
+                await _context.SaveChangesAsync();
+            }
+            else if (user.AuthProvider == null)
+            {
+                // L'utilisateur existait deja avec email/password, on lie le provider
+                user.AuthProvider = provider;
+                await _context.SaveChangesAsync();
+            }
+
+            var jwt = GenerateToken(user);
+
+            // Rediriger vers l'app MAUI avec le token
+            return Redirect($"agendaprof://auth?token={Uri.EscapeDataString(jwt)}&email={Uri.EscapeDataString(user.Email)}&nom={Uri.EscapeDataString(user.Nom ?? "")}&prenom={Uri.EscapeDataString(user.Prenom ?? "")}");
         }
 
         private string GenerateToken(Utilisateur user)
