@@ -566,6 +566,8 @@ public partial class AgendaContext : DbContext
         {
             entity.HasKey(e => e.Id).HasName("license_pkey");
             entity.ToTable("license");
+            // Index unique sur LOWER(code) en DB (géré en SQL, pas par EF migration)
+            // Compatible car les hashes SHA-256 sont toujours en minuscules
             entity.HasIndex(e => e.Code).IsUnique().HasDatabaseName("license_code_key");
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.Code).HasMaxLength(100).HasColumnName("code");
