@@ -26,8 +26,9 @@ namespace seragenda.Controllers
             if (string.IsNullOrWhiteSpace(dto.Code))
                 return BadRequest(new { message = "Code requis" });
 
+            var codeHash = LicenseHelper.HashCode(dto.Code);
             var license = await _context.Licenses
-                .FirstOrDefaultAsync(l => l.Code == LicenseHelper.HashCode(dto.Code));
+                .FirstOrDefaultAsync(l => l.Code == codeHash);
 
             if (license == null || !license.IsActive)
                 return BadRequest(new { message = "Code invalide ou révoqué" });
@@ -60,8 +61,9 @@ namespace seragenda.Controllers
             if (string.IsNullOrWhiteSpace(code))
                 return BadRequest(new { valid = false, message = "Code manquant" });
 
+            var codeHash = LicenseHelper.HashCode(code);
             var license = await _context.Licenses
-                .FirstOrDefaultAsync(l => l.Code == LicenseHelper.HashCode(code));
+                .FirstOrDefaultAsync(l => l.Code == codeHash);
 
             if (license == null || !license.IsActive)
                 return Ok(new { valid = false, message = "Licence révoquée" });
