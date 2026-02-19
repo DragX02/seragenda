@@ -20,8 +20,8 @@ public partial class Utilisateur
     [Column("prenom")]
     public string? Prenom { get; set; }
 
-    [Column("age")]
-    public int? Age { get; set; }
+    [Column("date_naissance")]
+    public DateOnly? DateNaissance { get; set; }
 
     public string RoleSysteme { get; set; } = null!;
 
@@ -32,7 +32,7 @@ public partial class Utilisateur
     // ALTER TABLE utilisateur ADD COLUMN is_confirmed BOOLEAN NOT NULL DEFAULT false;
     // ALTER TABLE utilisateur ADD COLUMN nom VARCHAR(100);
     // ALTER TABLE utilisateur ADD COLUMN prenom VARCHAR(100);
-    // ALTER TABLE utilisateur ADD COLUMN age INTEGER;
+    // ALTER TABLE utilisateur ADD COLUMN date_naissance DATE;
     public string? AuthProvider { get; set; }
     public bool IsConfirmed { get; set; }
 
