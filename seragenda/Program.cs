@@ -60,6 +60,15 @@ builder.Services.AddAuthentication(x =>
     googleOptions.CorrelationCookie.SameSite = SameSiteMode.None;
     googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
     googleOptions.CorrelationCookie.HttpOnly = true;
+    // Fix TaskCanceledException : ExchangeCodeAsync passe Context.RequestAborted au HttpClient.
+    // Si nginx ferme la connexion ou le browser deconnecte, RequestAborted annule l'echange.
+    // DetachedCancellationHandler ignore ce token → seul le BackchannelTimeout (30s) s'applique.
+    googleOptions.BackchannelTimeout = TimeSpan.FromSeconds(30);
+    googleOptions.BackchannelHttpHandler = new DetachedCancellationHandler(new SocketsHttpHandler
+    {
+        ConnectTimeout = TimeSpan.FromSeconds(10),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+    });
 })
 .AddMicrosoftAccount(msOptions =>
 {
@@ -119,3 +128,11 @@ app.MapGet("/api/update-scolaire", async (ScolaireScraper scraper) =>
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+// Empeche que Context.RequestAborted annule l'echange de code OAuth (ExchangeCodeAsync).
+// Le BackchannelTimeout (30s) reste le seul timeout actif.
+public class DetachedCancellationHandler(HttpMessageHandler inner) : DelegatingHandler(inner)
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        => base.SendAsync(request, CancellationToken.None);
+}
