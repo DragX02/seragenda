@@ -62,6 +62,7 @@ public partial class AgendaContext : DbContext
 
     public virtual DbSet<UserNote> UserNotes { get; set; }
 
+    public virtual DbSet<License> Licenses { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -559,6 +560,25 @@ public partial class AgendaContext : DbContext
             entity.HasOne(d => d.User).WithMany()
                 .HasForeignKey(d => d.IdUserFk)
                 .HasConstraintName("user_note_id_user_fk_fkey");
+        });
+
+        modelBuilder.Entity<License>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("license_pkey");
+            entity.ToTable("license");
+            entity.HasIndex(e => e.Code).IsUnique().HasDatabaseName("license_code_key");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.Code).HasMaxLength(100).HasColumnName("code");
+            entity.Property(e => e.IsActive).HasDefaultValue(true).HasColumnName("is_active");
+            entity.Property(e => e.CreatedAt).HasColumnType("timestamp without time zone").HasColumnName("created_at");
+            entity.Property(e => e.ExpiresAt).HasColumnType("timestamp without time zone").HasColumnName("expires_at");
+            entity.Property(e => e.Label).HasMaxLength(100).HasColumnName("label");
+            entity.Property(e => e.AssignedUserId).HasColumnName("assigned_user_id");
+            entity.Property(e => e.AssignedAt).HasColumnType("timestamp without time zone").HasColumnName("assigned_at");
+            entity.HasOne(e => e.AssignedUser).WithMany()
+                .HasForeignKey(e => e.AssignedUserId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("license_assigned_user_id_fkey");
         });
 
         OnModelCreatingPartial(modelBuilder);
