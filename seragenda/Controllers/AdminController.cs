@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using seragenda.Models;
+using seragenda.Services;
 
 namespace seragenda.Controllers
 {
@@ -48,16 +49,23 @@ namespace seragenda.Controllers
         [HttpPost("licenses")]
         public async Task<IActionResult> CreateLicense([FromBody] CreateLicenseDto dto)
         {
-            var code = string.IsNullOrWhiteSpace(dto.Code)
-                ? GenerateCode()
-                : dto.Code.Trim().ToUpper();
-
-            if (await _context.Licenses.AnyAsync(l => l.Code.ToLower() == code.ToLower()))
-                return BadRequest(new { message = "Ce code existe déjà" });
+            string plainCode;
+            if (string.IsNullOrWhiteSpace(dto.Code))
+            {
+                // Génère un code unique (comparaison sur le hash)
+                do { plainCode = GenerateCode(); }
+                while (await _context.Licenses.AnyAsync(l => l.Code == LicenseHelper.HashCode(plainCode)));
+            }
+            else
+            {
+                plainCode = dto.Code.Trim().ToUpper();
+                if (await _context.Licenses.AnyAsync(l => l.Code == LicenseHelper.HashCode(plainCode)))
+                    return BadRequest(new { message = "Ce code existe déjà" });
+            }
 
             var license = new License
             {
-                Code = code,
+                Code = LicenseHelper.HashCode(plainCode),   // Stockage du hash uniquement
                 Label = dto.Label?.Trim(),
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
@@ -67,7 +75,8 @@ namespace seragenda.Controllers
             _context.Licenses.Add(license);
             await _context.SaveChangesAsync();
 
-            return Ok(new { license.Id, license.Code, license.Label, license.IsActive, license.CreatedAt, license.ExpiresAt });
+            // Le plainCode est retourné UNE SEULE FOIS à l'admin pour le transmettre au tiers
+            return Ok(new { license.Id, Code = plainCode, license.Label, license.IsActive, license.CreatedAt, license.ExpiresAt });
         }
 
         // PUT /api/admin/licenses/{id}/revoke
@@ -109,8 +118,7 @@ namespace seragenda.Controllers
         private static string GenerateCode()
         {
             const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-            var random = new Random();
-            return new string(Enumerable.Range(0, 10).Select(_ => chars[random.Next(chars.Length)]).ToArray());
+            return new string(Enumerable.Range(0, 10).Select(_ => chars[Random.Shared.Next(chars.Length)]).ToArray());
         }
     }
 

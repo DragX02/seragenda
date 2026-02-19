@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using seragenda.Models;
+using seragenda.Services;
 using System.Security.Claims;
 
 namespace seragenda.Controllers
@@ -26,7 +27,7 @@ namespace seragenda.Controllers
                 return BadRequest(new { message = "Code requis" });
 
             var license = await _context.Licenses
-                .FirstOrDefaultAsync(l => l.Code.ToLower() == dto.Code.Trim().ToLower());
+                .FirstOrDefaultAsync(l => l.Code == LicenseHelper.HashCode(dto.Code));
 
             if (license == null || !license.IsActive)
                 return BadRequest(new { message = "Code invalide ou révoqué" });
@@ -47,7 +48,8 @@ namespace seragenda.Controllers
                 }
             }
 
-            return Ok(new { valid = true, code = license.Code });
+            // On retourne le code en clair (fourni par l'utilisateur), pas le hash stocké
+            return Ok(new { valid = true, code = dto.Code.Trim().ToUpper() });
         }
 
         // GET /api/access/check  (vérifie que la licence de l'utilisateur est toujours active)
@@ -59,7 +61,7 @@ namespace seragenda.Controllers
                 return BadRequest(new { valid = false, message = "Code manquant" });
 
             var license = await _context.Licenses
-                .FirstOrDefaultAsync(l => l.Code.ToLower() == code.Trim().ToLower());
+                .FirstOrDefaultAsync(l => l.Code == LicenseHelper.HashCode(code));
 
             if (license == null || !license.IsActive)
                 return Ok(new { valid = false, message = "Licence révoquée" });
