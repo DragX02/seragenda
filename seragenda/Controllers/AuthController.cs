@@ -204,7 +204,7 @@ namespace seragenda.Controllers
 
             if (!authenticateResult.Succeeded)
             {
-                return Redirect("agendaprof://auth?error=oauth_failed");
+                return Redirect("/auth-callback?error=oauth_failed");
             }
 
             var claims = authenticateResult.Principal?.Claims;
@@ -214,7 +214,7 @@ namespace seragenda.Controllers
 
             if (string.IsNullOrEmpty(email))
             {
-                return Redirect("agendaprof://auth?error=no_email");
+                return Redirect("/auth-callback?error=no_email");
             }
 
             // Chercher ou creer l'utilisateur
@@ -247,8 +247,7 @@ namespace seragenda.Controllers
 
             var jwt = GenerateToken(user);
 
-            // Rediriger vers l'app MAUI avec le token
-            return Redirect($"agendaprof://auth?token={Uri.EscapeDataString(jwt)}&email={Uri.EscapeDataString(user.Email)}&nom={Uri.EscapeDataString(user.Nom ?? "")}&prenom={Uri.EscapeDataString(user.Prenom ?? "")}");
+            return Redirect($"/auth-callback?token={Uri.EscapeDataString(jwt)}&email={Uri.EscapeDataString(user.Email)}&nom={Uri.EscapeDataString(user.Nom ?? "")}&prenom={Uri.EscapeDataString(user.Prenom ?? "")}");
         }
 
         private string GenerateToken(Utilisateur user)

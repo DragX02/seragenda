@@ -4,6 +4,7 @@ using seragenda.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.HttpOverrides;
 using System.Text;
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -81,18 +82,26 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// ForwardedHeaders : permet a ASP.NET de connaitre l'URL publique quand derriere nginx
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
+});
+
 // app.UseHttpsRedirection(); // Desactive - le serveur tourne en HTTP
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
-app.MapGet("/", () => "Serveur I en ligne !");
 
 app.MapGet("/api/update-scolaire", async (ScolaireScraper scraper) =>
 {
     await scraper.DemarrerScraping();
     return Results.Ok("Scraping terminé !");
 }).RequireAuthorization();
+
+app.MapFallbackToFile("index.html");
 
 app.Run();

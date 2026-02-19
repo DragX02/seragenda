@@ -58,7 +58,11 @@ public partial class AgendaContext : DbContext
 
     public virtual DbSet<ViseesMaitriser> ViseesMaitrisers { get; set; }
 
-    
+    public virtual DbSet<UserCourse> UserCourses { get; set; }
+
+    public virtual DbSet<UserNote> UserNotes { get; set; }
+
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Abonnement>(entity =>
@@ -521,6 +525,40 @@ public partial class AgendaContext : DbContext
 
             entity.Property(e => e.IdViseesMaitriser).HasColumnName("id_visees_maitriser");
             entity.Property(e => e.NomViseesMaitriser).HasColumnName("nom_visees_maitriser");
+        });
+
+        modelBuilder.Entity<UserCourse>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("user_course_pkey");
+            entity.ToTable("user_course");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.IdUserFk).HasColumnName("id_user_fk");
+            entity.Property(e => e.Name).HasMaxLength(100).HasColumnName("name");
+            entity.Property(e => e.Color).HasMaxLength(9).HasColumnName("color");
+            entity.Property(e => e.StartDate).HasColumnName("start_date");
+            entity.Property(e => e.EndDate).HasColumnName("end_date");
+            entity.Property(e => e.StartTime).HasColumnName("start_time");
+            entity.Property(e => e.EndTime).HasColumnName("end_time");
+            entity.Property(e => e.DaysOfWeek).HasColumnName("days_of_week");
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.IdUserFk)
+                .HasConstraintName("user_course_id_user_fk_fkey");
+        });
+
+        modelBuilder.Entity<UserNote>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("user_note_pkey");
+            entity.ToTable("user_note");
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.IdUserFk).HasColumnName("id_user_fk");
+            entity.Property(e => e.Date).HasColumnName("date");
+            entity.Property(e => e.Hour).HasColumnName("hour");
+            entity.Property(e => e.Content).HasColumnName("content");
+            entity.Property(e => e.CreatedAt).HasColumnType("timestamp without time zone").HasColumnName("created_at");
+            entity.Property(e => e.ModifiedAt).HasColumnType("timestamp without time zone").HasColumnName("modified_at");
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.IdUserFk)
+                .HasConstraintName("user_note_id_user_fk_fkey");
         });
 
         OnModelCreatingPartial(modelBuilder);
