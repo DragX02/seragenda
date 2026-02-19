@@ -49,41 +49,48 @@ namespace seragenda.Controllers
         [HttpPost("licenses")]
         public async Task<IActionResult> CreateLicense([FromBody] CreateLicenseDto dto)
         {
-            string plainCode;
-            if (string.IsNullOrWhiteSpace(dto.Code))
-            {
-                // Génère un code unique (comparaison sur le hash)
-                do { plainCode = GenerateCode(); }
-                while (await _context.Licenses.AnyAsync(l => l.Code == LicenseHelper.HashCode(plainCode)));
-            }
-            else
-            {
-                plainCode = dto.Code.Trim().ToUpper();
-                if (await _context.Licenses.AnyAsync(l => l.Code == LicenseHelper.HashCode(plainCode)))
-                    return BadRequest(new { message = "Ce code existe déjà" });
-            }
-
-            var license = new License
-            {
-                Code = LicenseHelper.HashCode(plainCode),   // Stockage du hash uniquement
-                Label = dto.Label?.Trim(),
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                ExpiresAt = dto.ExpiresAt
-            };
-
-            _context.Licenses.Add(license);
             try
             {
+                string plainCode;
+                string codeHash;
+
+                if (string.IsNullOrWhiteSpace(dto.Code))
+                {
+                    // Génère un code unique — hash calculé AVANT la requête LINQ
+                    do
+                    {
+                        plainCode = GenerateCode();
+                        codeHash = LicenseHelper.HashCode(plainCode);
+                    }
+                    while (await _context.Licenses.AnyAsync(l => l.Code == codeHash));
+                }
+                else
+                {
+                    plainCode = dto.Code.Trim().ToUpper();
+                    codeHash = LicenseHelper.HashCode(plainCode);
+                    if (await _context.Licenses.AnyAsync(l => l.Code == codeHash))
+                        return BadRequest(new { message = "Ce code existe déjà" });
+                }
+
+                var license = new License
+                {
+                    Code = codeHash,
+                    Label = dto.Label?.Trim(),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    ExpiresAt = dto.ExpiresAt
+                };
+
+                _context.Licenses.Add(license);
                 await _context.SaveChangesAsync();
+
+                // Le plainCode est retourné UNE SEULE FOIS à l'admin pour le transmettre au tiers
+                return Ok(new { license.Id, Code = plainCode, license.Label, license.IsActive, license.CreatedAt, license.ExpiresAt });
             }
             catch (Exception ex)
             {
                 return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message });
             }
-
-            // Le plainCode est retourné UNE SEULE FOIS à l'admin pour le transmettre au tiers
-            return Ok(new { license.Id, Code = plainCode, license.Label, license.IsActive, license.CreatedAt, license.ExpiresAt });
         }
 
         // PUT /api/admin/licenses/{id}/revoke
