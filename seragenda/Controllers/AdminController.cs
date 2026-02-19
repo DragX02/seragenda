@@ -73,7 +73,14 @@ namespace seragenda.Controllers
             };
 
             _context.Licenses.Add(license);
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message });
+            }
 
             // Le plainCode est retourné UNE SEULE FOIS à l'admin pour le transmettre au tiers
             return Ok(new { license.Id, Code = plainCode, license.Label, license.IsActive, license.CreatedAt, license.ExpiresAt });
