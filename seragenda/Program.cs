@@ -55,6 +55,11 @@ builder.Services.AddAuthentication(x =>
     googleOptions.ClientId = googleAuth["ClientId"] ?? "";
     googleOptions.ClientSecret = googleAuth["ClientSecret"] ?? "";
     googleOptions.CallbackPath = "/api/auth/google-signin";
+    // Fix "Correlation failed" derriere nginx (TLS termine par le proxy)
+    // Chrome rejette SameSite=None sans Secure → forcer Secure=Always
+    googleOptions.CorrelationCookie.SameSite = SameSiteMode.None;
+    googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+    googleOptions.CorrelationCookie.HttpOnly = true;
 })
 .AddMicrosoftAccount(msOptions =>
 {
@@ -62,6 +67,9 @@ builder.Services.AddAuthentication(x =>
     msOptions.ClientId = msAuth["ClientId"] ?? "";
     msOptions.ClientSecret = msAuth["ClientSecret"] ?? "";
     msOptions.CallbackPath = "/api/auth/microsoft-signin";
+    msOptions.CorrelationCookie.SameSite = SameSiteMode.None;
+    msOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+    msOptions.CorrelationCookie.HttpOnly = true;
 });
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -74,6 +82,15 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// ForwardedHeaders : faire confiance a tous les proxies (nginx, etc.)
+// KnownNetworks/KnownProxies vides = accepter les headers de n'importe quel proxy
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -82,11 +99,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// ForwardedHeaders : permet a ASP.NET de connaitre l'URL publique quand derriere nginx
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedHost | ForwardedHeaders.XForwardedProto
-});
+// ForwardedHeaders doit etre le premier middleware
+app.UseForwardedHeaders();
 
 // app.UseHttpsRedirection(); // Desactive - le serveur tourne en HTTP
 app.UseDefaultFiles();
