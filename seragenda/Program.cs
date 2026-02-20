@@ -85,6 +85,11 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AgendaContext>(options =>
     options.UseNpgsql(connectionString));
 
+// Persister les clés DataProtection sur disque (nécessaire pour les cookies OAuth sur Linux)
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new System.IO.DirectoryInfo("/var/www/serapi/dataprotection-keys"))
+    .SetApplicationName("serapi");
+
 // 2. Services
 builder.Services.AddScoped<ScolaireScraper>();
 builder.Services.AddControllers();
