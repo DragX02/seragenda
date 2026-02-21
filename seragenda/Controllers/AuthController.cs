@@ -247,7 +247,53 @@ namespace seragenda.Controllers
 
             var jwt = GenerateToken(user);
 
-            return Redirect($"/auth-callback?token={Uri.EscapeDataString(jwt)}&email={Uri.EscapeDataString(user.Email)}&nom={Uri.EscapeDataString(user.Nom ?? "")}&prenom={Uri.EscapeDataString(user.Prenom ?? "")}");
+            // Stocker le token dans un cookie HttpOnly temporaire (5 min)
+            // au lieu de le passer dans l'URL (visible dans logs/historique)
+            var authPayload = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                Token = jwt,
+                Email = user.Email,
+                Nom = user.Nom ?? "",
+                Prenom = user.Prenom ?? ""
+            });
+            Response.Cookies.Append("auth_pending", authPayload, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                MaxAge = TimeSpan.FromMinutes(5),
+                Path = "/"
+            });
+            return Redirect("/auth-callback");
+        }
+
+        // Echange le cookie temporaire auth_pending contre les données d'auth (JSON)
+        // Appele par le client Blazor apres la redirection OAuth
+        [HttpGet("exchange")]
+        public IActionResult Exchange()
+        {
+            var authPayload = Request.Cookies["auth_pending"];
+            if (string.IsNullOrEmpty(authPayload))
+                return NotFound();
+
+            // Supprimer le cookie immédiatement après lecture (usage unique)
+            Response.Cookies.Delete("auth_pending", new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Lax,
+                Path = "/"
+            });
+
+            try
+            {
+                var data = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(authPayload);
+                return Ok(data);
+            }
+            catch
+            {
+                return BadRequest();
+            }
         }
 
         private string GenerateToken(Utilisateur user)

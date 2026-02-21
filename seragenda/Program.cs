@@ -19,14 +19,17 @@ if (string.IsNullOrEmpty(secretkey))
 }
 var key = Encoding.ASCII.GetBytes(secretkey);
 
-// CORS pour l'application mobile
+// CORS : origines autorisées lues depuis la config (Cors:AllowedOrigins)
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(allowedOrigins)
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using seragenda.Models;
 using seragenda.Services;
+using System.Security.Cryptography;
 
 namespace seragenda.Controllers
 {
@@ -132,7 +133,8 @@ namespace seragenda.Controllers
         private static string GenerateCode()
         {
             const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-            return new string(Enumerable.Range(0, 10).Select(_ => chars[Random.Shared.Next(chars.Length)]).ToArray());
+            var bytes = RandomNumberGenerator.GetBytes(10);
+            return new string(bytes.Select(b => chars[b % chars.Length]).ToArray());
         }
     }
 
