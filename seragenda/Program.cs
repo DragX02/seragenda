@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using seragenda;
 using seragenda.Services;
@@ -7,6 +8,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Text;
+using System.Threading.RateLimiting;
 
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
@@ -94,6 +96,23 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new System.IO.DirectoryInfo("/var/www/serapi/dataprotection-keys"))
     .SetApplicationName("serapi");
 
+// Rate limiting : protège les endpoints d'auth contre le brute force
+// 5 tentatives par 15 minutes par IP sur login/register
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(15),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+    options.RejectionStatusCode = 429;
+});
+
 // 2. Services
 builder.Services.AddScoped<ScolaireScraper>();
 builder.Services.AddControllers();
@@ -119,6 +138,7 @@ if (app.Environment.IsDevelopment())
 
 // ForwardedHeaders doit etre le premier middleware
 app.UseForwardedHeaders();
+app.UseRateLimiter();
 
 // app.UseHttpsRedirection(); // Desactive - le serveur tourne en HTTP
 app.UseDefaultFiles();

@@ -88,9 +88,9 @@ namespace seragenda.Controllers
                 // Le plainCode est retourné UNE SEULE FOIS à l'admin pour le transmettre au tiers
                 return Ok(new { license.Id, Code = plainCode, license.Label, license.IsActive, license.CreatedAt, license.ExpiresAt });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                return StatusCode(500, new { message = ex.InnerException?.Message ?? ex.Message });
+                return StatusCode(500, new { message = "Erreur lors de la création de la licence" });
             }
         }
 
