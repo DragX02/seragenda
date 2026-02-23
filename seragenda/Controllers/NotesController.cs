@@ -40,6 +40,22 @@ namespace seragenda.Controllers
             return Ok(notes);
         }
 
+        [HttpGet("range")]
+        public async Task<IActionResult> GetNotesForRange([FromQuery] DateTime start, [FromQuery] DateTime end)
+        {
+            var userId = await GetUserId();
+            if (userId == null) return Unauthorized();
+
+            if ((end - start).TotalDays > 62) return BadRequest("Plage trop grande.");
+
+            var notes = await _context.UserNotes
+                .Where(n => n.IdUserFk == userId && n.Date >= start.Date && n.Date <= end.Date)
+                .OrderBy(n => n.Date).ThenBy(n => n.Hour)
+                .ToListAsync();
+
+            return Ok(notes);
+        }
+
         [HttpPost]
         public async Task<IActionResult> Save([FromBody] UserNote note)
         {
