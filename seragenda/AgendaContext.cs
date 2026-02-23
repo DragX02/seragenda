@@ -552,7 +552,7 @@ public partial class AgendaContext : DbContext
             entity.ToTable("user_note");
             entity.Property(e => e.Id).HasColumnName("id");
             entity.Property(e => e.IdUserFk).HasColumnName("id_user_fk");
-            entity.Property(e => e.Date).HasColumnName("date");
+            entity.Property(e => e.Date).HasColumnType("date").HasColumnName("date");
             entity.Property(e => e.Hour).HasColumnName("hour");
             entity.Property(e => e.EndHour).HasColumnName("end_hour");
             entity.Property(e => e.Content).HasColumnName("content");
