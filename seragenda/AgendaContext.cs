@@ -554,6 +554,7 @@ public partial class AgendaContext : DbContext
             entity.Property(e => e.IdUserFk).HasColumnName("id_user_fk");
             entity.Property(e => e.Date).HasColumnName("date");
             entity.Property(e => e.Hour).HasColumnName("hour");
+            entity.Property(e => e.EndHour).HasColumnName("end_hour");
             entity.Property(e => e.Content).HasColumnName("content");
             entity.Property(e => e.CreatedAt).HasColumnType("timestamp without time zone").HasColumnName("created_at");
             entity.Property(e => e.ModifiedAt).HasColumnType("timestamp without time zone").HasColumnName("modified_at");

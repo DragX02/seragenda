@@ -46,6 +46,15 @@ namespace seragenda.Controllers
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
+            // Sanitize content : trim, strip HTML, max 2000 chars
+            note.Content = note.Content?.Trim() ?? string.Empty;
+            note.Content = System.Text.RegularExpressions.Regex.Replace(note.Content, "<[^>]*>", string.Empty);
+            if (note.Content.Length > 2000) note.Content = note.Content[..2000];
+
+            // Validate hours
+            if (note.Hour < 6 || note.Hour > 22) return BadRequest("Heure de début invalide.");
+            if (note.EndHour <= note.Hour || note.EndHour > 23) note.EndHour = note.Hour + 1;
+
             note.IdUserFk = userId.Value;
 
             if (note.Id == 0)
@@ -61,6 +70,8 @@ namespace seragenda.Controllers
                 if (existing == null) return NotFound();
 
                 existing.Content = note.Content;
+                existing.Hour = note.Hour;
+                existing.EndHour = note.EndHour;
                 existing.ModifiedAt = DateTime.UtcNow;
             }
 

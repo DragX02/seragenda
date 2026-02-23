@@ -98,6 +98,9 @@ builder.Services.AddDataProtection()
 
 // Rate limiting : protège les endpoints d'auth contre le brute force
 // 5 tentatives par 15 minutes par IP sur login/register
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy("AdminOnly", policy => policy.RequireRole("ADMIN"));
+
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy("auth", httpContext =>
@@ -152,7 +155,7 @@ app.MapGet("/api/update-scolaire", async (ScolaireScraper scraper) =>
 {
     await scraper.DemarrerScraping();
     return Results.Ok("Scraping terminé !");
-}).RequireAuthorization();
+}).RequireAuthorization("AdminOnly");
 
 app.MapFallbackToFile("index.html");
 
