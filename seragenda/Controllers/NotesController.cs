@@ -32,8 +32,10 @@ namespace seragenda.Controllers
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
+            var dayStart = date.Date;
+            var dayEnd   = dayStart.AddDays(1);
             var notes = await _context.UserNotes
-                .Where(n => n.IdUserFk == userId && n.Date == date.Date)
+                .Where(n => n.IdUserFk == userId && n.Date >= dayStart && n.Date < dayEnd)
                 .OrderBy(n => n.Hour)
                 .ToListAsync();
 
@@ -61,6 +63,9 @@ namespace seragenda.Controllers
         {
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
+
+            // Normaliser la date : supprimer le décalage horaire éventuel (Year/Month/Day uniquement)
+            note.Date = new DateTime(note.Date.Year, note.Date.Month, note.Date.Day, 0, 0, 0, DateTimeKind.Unspecified);
 
             // Sanitize content : trim, strip HTML, max 2000 chars
             note.Content = note.Content?.Trim() ?? string.Empty;
