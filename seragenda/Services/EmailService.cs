@@ -17,7 +17,7 @@ public class EmailService : IEmailService
 
     public async Task SendConfirmationEmailAsync(string toEmail, string prenom, string confirmationUrl)
     {
-        var smtp      = _config.GetSection("Smtp");
+        var smtp      = _config.GetSection("EmailSettings");
         var fromEmail = smtp["FromEmail"] ?? "noreply@obrigenie.app";
         var fromName  = smtp["FromName"]  ?? "ObriGénie";
         var frontUrl  = _config["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
