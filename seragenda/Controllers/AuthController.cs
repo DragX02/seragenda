@@ -209,6 +209,16 @@ namespace seragenda.Controllers
             return Ok(new { message = "Compte confirmé ! Vous pouvez maintenant vous connecter." });
         }
 
+        // ===== TEST EMAIL (à supprimer après test) =====
+        [HttpGet("test-email")]
+        public async Task<IActionResult> TestEmail()
+        {
+            var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
+            var testUrl = $"{frontendUrl}/confirm-email?token=TEST_TOKEN_123";
+            await _emailService.SendConfirmationEmailAsync("dragx03@gmail.com", "Test", testUrl);
+            return Ok(new { message = "Email envoyé !" });
+        }
+
         // ===== GOOGLE OAUTH =====
         [HttpGet("google")]
         public IActionResult GoogleLogin()
