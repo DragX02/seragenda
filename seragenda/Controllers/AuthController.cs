@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using seragenda.Models;
+using seragenda.Services;
 using seragenda.Validators;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -22,11 +23,13 @@ namespace seragenda.Controllers
     {
         private readonly IConfiguration _configuration;
         private readonly AgendaContext _context;
+        private readonly IEmailService _emailService;
 
-        public AuthController(IConfiguration configuration, AgendaContext context)
+        public AuthController(IConfiguration configuration, AgendaContext context, IEmailService emailService)
         {
             _configuration = configuration;
             _context = context;
+            _emailService = emailService;
         }
 
         [HttpPost("login")]
@@ -63,6 +66,12 @@ namespace seragenda.Controllers
             if (!BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
             {
                 return Unauthorized("Email ou mot de passe incorrect.");
+            }
+
+            // Vérifier que le compte est confirmé
+            if (!user.IsConfirmed)
+            {
+                return Unauthorized("Veuillez confirmer votre email avant de vous connecter.");
             }
 
             var jwt = GenerateToken(user);
@@ -137,7 +146,10 @@ namespace seragenda.Controllers
             var sanitizedNom = InputValidator.SanitizeInput(registerDto.Nom);
             var sanitizedPrenom = InputValidator.SanitizeInput(registerDto.Prenom);
 
-            // Créer le nouvel utilisateur
+            // Générer un token de confirmation (valable 24h)
+            var confirmationToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+
+            // Créer le nouvel utilisateur (non confirmé jusqu'à la validation par email)
             var user = new Utilisateur
             {
                 Email = registerDto.Email.Trim().ToLower(),
@@ -146,21 +158,55 @@ namespace seragenda.Controllers
                 Prenom = sanitizedPrenom,
                 RoleSysteme = "PROF",
                 CreatedAt = DateTime.UtcNow,
-                IsConfirmed = true,
-                AuthProvider = null
+                IsConfirmed = false,
+                AuthProvider = null,
+                ConfirmationToken = confirmationToken,
+                ConfirmationTokenExpiresAt = DateTime.UtcNow.AddHours(24)
             };
 
             _context.Utilisateurs.Add(user);
             await _context.SaveChangesAsync();
 
-            var jwt = GenerateToken(user);
+            // Envoyer le mail de confirmation
+            var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
+            var confirmUrl  = $"{frontendUrl}/confirm-email?token={confirmationToken}";
+            try
+            {
+                await _emailService.SendConfirmationEmailAsync(user.Email, user.Prenom ?? "Utilisateur", confirmUrl);
+            }
+            catch
+            {
+                // L'envoi du mail a échoué mais le compte est créé : on laisse passer sans bloquer
+            }
 
-            return Ok(new {
-                Token = jwt,
-                Email = user.Email,
-                Nom = user.Nom,
-                Prenom = user.Prenom
-            });
+            return Ok(new { message = "Compte créé ! Vérifiez votre email pour confirmer votre inscription." });
+        }
+
+        // ===== CONFIRMATION EMAIL =====
+        [HttpGet("confirm")]
+        public async Task<IActionResult> ConfirmEmail([FromQuery] string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+                return BadRequest("Token manquant.");
+
+            var user = await _context.Utilisateurs
+                .FirstOrDefaultAsync(u => u.ConfirmationToken == token);
+
+            if (user == null)
+                return BadRequest("Token invalide.");
+
+            if (user.IsConfirmed)
+                return Ok(new { message = "Compte déjà confirmé." });
+
+            if (user.ConfirmationTokenExpiresAt < DateTime.UtcNow)
+                return BadRequest("Ce lien de confirmation a expiré. Créez un nouveau compte.");
+
+            user.IsConfirmed = true;
+            user.ConfirmationToken = null;
+            user.ConfirmationTokenExpiresAt = null;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Compte confirmé ! Vous pouvez maintenant vous connecter." });
         }
 
         // ===== GOOGLE OAUTH =====

@@ -421,6 +421,14 @@ public partial class AgendaContext : DbContext
             entity.Property(e => e.IsConfirmed)
                 .HasColumnName("is_confirmed")
                 .HasDefaultValue(false);
+
+            entity.Property(e => e.ConfirmationToken)
+                .HasMaxLength(100)
+                .HasColumnName("confirmation_token");
+
+            entity.Property(e => e.ConfirmationTokenExpiresAt)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("confirmation_token_expires_at");
         });
 
         modelBuilder.Entity<UtilisationChapitre>(entity =>

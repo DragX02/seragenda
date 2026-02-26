@@ -118,6 +118,7 @@ builder.Services.AddRateLimiter(options =>
 
 // 2. Services
 builder.Services.AddScoped<ScolaireScraper>();
+builder.Services.AddScoped<seragenda.Services.IEmailService, seragenda.Services.EmailService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

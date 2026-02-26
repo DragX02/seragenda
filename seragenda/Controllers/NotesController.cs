@@ -67,8 +67,11 @@ namespace seragenda.Controllers
             // Normaliser la date : supprimer le décalage horaire éventuel (Year/Month/Day uniquement)
             note.Date = new DateTime(note.Date.Year, note.Date.Month, note.Date.Day, 0, 0, 0, DateTimeKind.Unspecified);
 
-            // Sanitize content : trim, strip HTML, max 2000 chars
+            // Sanitize content : trim, supprimer le contenu des balises script/style puis les balises restantes
             note.Content = note.Content?.Trim() ?? string.Empty;
+            note.Content = System.Text.RegularExpressions.Regex.Replace(
+                note.Content, @"<(script|style|iframe|object|embed)[^>]*>.*?<\/\1>",
+                string.Empty, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
             note.Content = System.Text.RegularExpressions.Regex.Replace(note.Content, "<[^>]*>", string.Empty);
             if (note.Content.Length > 2000) note.Content = note.Content[..2000];
 

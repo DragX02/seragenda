@@ -36,6 +36,10 @@ public partial class Utilisateur
     public string? AuthProvider { get; set; }
     public bool IsConfirmed { get; set; }
 
+    // Confirmation email
+    public string? ConfirmationToken { get; set; }
+    public DateTime? ConfirmationTokenExpiresAt { get; set; }
+
     public virtual ICollection<Abonnement> Abonnements { get; set; } = new List<Abonnement>();
 
     public virtual ICollection<CoursNiveau> CoursNiveaus { get; set; } = new List<CoursNiveau>();
