@@ -296,6 +296,9 @@ namespace seragenda.Controllers
 
                 _context.Utilisateurs.Add(user);
                 await _context.SaveChangesAsync();
+
+                try { await _emailService.SendWelcomeEmailAsync(user.Email, user.Prenom ?? ""); }
+                catch { /* envoi non bloquant */ }
             }
             else if (user.AuthProvider == null)
             {
