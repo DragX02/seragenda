@@ -1,38 +1,36 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Links a specific learning objective (Visee) to a planned lesson session (Planification).
-/// Each SeanceObjectif record means: "During this session, the teacher plans to address this objective."
-/// An optional flag indicates whether a formal evaluation (test, quiz, etc.) is planned
-/// for this objective during the session.
-/// A single session can target multiple objectives, and the same objective can appear
-/// across multiple sessions.
-/// </summary>
+// Relie un objectif d'apprentissage spécifique (Visee) à une séance de cours planifiée (Planification).
+// Chaque enregistrement SeanceObjectif signifie : "Lors de cette séance, l'enseignant prévoit de traiter cet objectif."
+// Un indicateur optionnel indique si une évaluation formelle (interrogation, quiz, etc.) est prévue
+// pour cet objectif pendant la séance.
+// Une même séance peut cibler plusieurs objectifs, et le même objectif peut apparaître
+// dans plusieurs séances.
 public partial class SeanceObjectif
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdSeanceObj { get; set; }
 
-    // Foreign key to the Planification (lesson session) this objective is associated with
+    // Clé étrangère vers la Planification (séance de cours) à laquelle cet objectif est associé
     public int IdPlanningFk { get; set; }
 
-    // Foreign key to the Visee (learning objective) being addressed in this session
+    // Clé étrangère vers la Visee (objectif d'apprentissage) abordée dans cette séance
     public int IdViseeFk { get; set; }
 
-    // Indicates whether a formal evaluation of this objective is planned for this session.
-    // Null defaults to false in the database.
-    // True = teacher plans to test or formally evaluate this objective during the session.
+    // Indique si une évaluation formelle de cet objectif est prévue pour cette séance.
+    // Null par défaut équivaut à false en base de données.
+    // True = l'enseignant prévoit d'évaluer ou de tester formellement cet objectif pendant la séance.
     public bool? EvaluationPrevue { get; set; }
 
-    // Navigation property: the full Planification (lesson session) record
+    // Propriété de navigation : l'enregistrement Planification (séance de cours) complet
     public virtual Planification IdPlanningFkNavigation { get; set; } = null!;
 
-    // Navigation property: the full Visee (learning objective) record
+    // Propriété de navigation : l'enregistrement Visee (objectif d'apprentissage) complet
     public virtual Visee IdViseeFkNavigation { get; set; } = null!;
 }

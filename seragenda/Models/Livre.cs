@@ -1,42 +1,40 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents a physical or digital textbook in the resource catalogue.
-/// Livres (books) are linked to course-level combinations via the UtilisationLivre table
-/// (indicating which books are recommended or required for a given subject and level).
-/// Books contain chapters (Chapitre) that can be individually referenced in lesson sessions.
-/// ISBN has a unique database index to prevent duplicate book entries.
-/// </summary>
+// Représente un manuel scolaire physique ou numérique dans le catalogue de ressources.
+// Les Livres (manuels) sont liés aux combinaisons cours-niveau via la table UtilisationLivre
+// (indiquant quels manuels sont recommandés ou obligatoires pour une matière et un niveau donnés).
+// Les manuels contiennent des chapitres (Chapitre) pouvant être référencés individuellement dans les séances de cours.
+// L'ISBN possède un index unique en base de données pour éviter les doublons d'entrées de manuels.
 public partial class Livre
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdLivre { get; set; }
 
-    // Full title of the book (e.g., "Mathématiques 4e — Livre de l'élève")
-    // Maximum length: 255 characters; required (not null)
+    // Titre complet du manuel (ex. : "Mathématiques 4e — Livre de l'élève")
+    // Longueur maximale : 255 caractères ; obligatoire (non null)
     public string TitreLivre { get; set; } = null!;
 
-    // Name(s) of the book's author(s); may be null if unknown
-    // Maximum length: 150 characters
+    // Nom(s) du ou des auteur(s) du manuel ; peut être null si inconnu
+    // Longueur maximale : 150 caractères
     public string? Auteur { get; set; }
 
-    // International Standard Book Number (13-digit ISBN); must be unique across all books
-    // May be null for books without a formal ISBN
+    // Numéro ISBN (International Standard Book Number, 13 chiffres) ; doit être unique parmi tous les manuels
+    // Peut être null pour les manuels sans ISBN formel
     public string? Isbn { get; set; }
 
-    // Name of the publishing house (e.g., "Nathan", "Hachette Éducation")
-    // Maximum length: 100 characters; may be null
+    // Nom de la maison d'édition (ex. : "Nathan", "Hachette Éducation")
+    // Longueur maximale : 100 caractères ; peut être null
     public string? MaisonEdition { get; set; }
 
-    // Navigation property: all chapters that belong to this book
+    // Propriété de navigation : tous les chapitres qui appartiennent à ce manuel
     public virtual ICollection<Chapitre> Chapitres { get; set; } = new List<Chapitre>();
 
-    // Navigation property: all course-level usage records that reference this book
+    // Propriété de navigation : tous les enregistrements d'utilisation cours-niveau qui référencent ce manuel
     public virtual ICollection<UtilisationLivre> UtilisationLivres { get; set; } = new List<UtilisationLivre>();
 }

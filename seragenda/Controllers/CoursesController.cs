@@ -1,82 +1,74 @@
-// Import ASP.NET Core authorization attributes
+// Importation des attributs d'autorisation ASP.NET Core
 using Microsoft.AspNetCore.Authorization;
-// Import base MVC/API controller types and result helpers
+// Importation des types de contrôleur MVC/API de base et des helpers de résultat
 using Microsoft.AspNetCore.Mvc;
-// Import Entity Framework Core for async database operations
+// Importation d'Entity Framework Core pour les opérations asynchrones en base de données
 using Microsoft.EntityFrameworkCore;
-// Import project models (UserCourse, Utilisateur, etc.)
+// Importation des modèles du projet (UserCourse, Utilisateur, etc.)
 using seragenda.Models;
-// Import Claims support for extracting the user's email from the JWT
+// Importation du support des Claims pour extraire l'email de l'utilisateur depuis le JWT
 using System.Security.Claims;
 
 namespace seragenda.Controllers
 {
-    // All routes are prefixed with /api/courses
+    // Toutes les routes sont préfixées par /api/courses
     [Route("api/[controller]")]
-    // Marks this class as an API controller
+    // Marque cette classe comme contrôleur API
     [ApiController]
-    // All endpoints require a valid JWT token — anonymous access is denied
+    // Tous les points de terminaison nécessitent un jeton JWT valide — l'accès anonyme est refusé
     [Authorize]
-    /// <summary>
-    /// Manages recurring course schedule entries for the authenticated user.
-    /// A "course" here represents a repeating class block with a time slot, days of week,
-    /// a date range (semester/year), a name, and a display colour.
-    /// The "days of week" are encoded as a bitmask (Monday=1, Tuesday=2, Wednesday=4, ...).
-    /// </summary>
+    // Gère les entrées de planning de cours récurrents pour l'utilisateur authentifié.
+    // Un "cours" représente ici un bloc de classe répétitif avec un créneau horaire, des jours de la semaine,
+    // une plage de dates (semestre/année), un nom et une couleur d'affichage.
+    // Les "jours de la semaine" sont encodés sous forme de masque de bits (Lundi=1, Mardi=2, Mercredi=4, ...).
     public class CoursesController : ControllerBase
     {
-        // Entity Framework database context for reading and writing UserCourse records
+        // Contexte de base de données Entity Framework pour lire et écrire les enregistrements UserCourse
         private readonly AgendaContext _context;
 
-        /// <summary>
-        /// Constructor — receives the database context via dependency injection.
-        /// </summary>
-        /// <param name="context">The EF Core database context</param>
+        // Constructeur — reçoit le contexte de base de données par injection de dépendances.
+        // context : le contexte de base de données EF Core
         public CoursesController(AgendaContext context)
         {
             _context = context;
         }
 
-        /// <summary>
-        /// Resolves the integer primary key of the currently authenticated user
-        /// by looking up their email address (stored as the JWT Name claim) in the database.
-        /// Returns null if the claim is missing or the user does not exist.
-        /// </summary>
-        /// <returns>The user's IdUser, or null if not found</returns>
+        // Résout la clé primaire entière de l'utilisateur actuellement authentifié
+        // en recherchant son adresse email (stockée comme claim Name du JWT) en base de données.
+        // Retourne null si le claim est absent ou si l'utilisateur n'existe pas.
+        // Retourne l'IdUser de l'utilisateur, ou null s'il est introuvable
         private async Task<int?> GetUserId()
         {
-            // The Name claim was set to the user's email at login time
+            // Le claim Name a été défini sur l'email de l'utilisateur au moment de la connexion
             var email = User.FindFirst(ClaimTypes.Name)?.Value;
-            // If the claim is absent, we cannot identify the user
+            // Si le claim est absent, l'utilisateur ne peut pas être identifié
             if (email == null) return null;
-            // Find the user record that matches the email
+            // Recherche de l'enregistrement utilisateur correspondant à l'email
             var user = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.Email == email);
-            // Return only the integer PK, or null if no match
+            // Retourne uniquement la clé primaire entière, ou null si aucune correspondance
             return user?.IdUser;
         }
 
         // GET /api/courses/date/{date}
-        // Returns all courses scheduled on a specific calendar date for the current user
+        // Retourne tous les cours planifiés à une date calendaire spécifique pour l'utilisateur courant
         [HttpGet("date/{date}")]
-        /// <summary>
-        /// Retrieves all course entries that occur on a given date.
-        /// A course occurs on a date if:
-        /// 1. The date falls within the course's StartDate–EndDate range, AND
-        /// 2. The day of the week matches one of the bits set in the DaysOfWeek bitmask.
-        /// </summary>
-        /// <param name="date">The target date (parsed from the route segment)</param>
+        // Récupère toutes les entrées de cours qui ont lieu à une date donnée.
+        // Un cours a lieu à une date si :
+        // 1. La date tombe dans la plage StartDate–EndDate du cours, ET
+        // 2. Le jour de la semaine correspond à l'un des bits définis dans le masque DaysOfWeek.
+        // date : la date cible (analysée depuis le segment de route)
         public async Task<IActionResult> GetCoursesForDate(DateTime date)
         {
-            // Identify the requesting user
+            // Identification de l'utilisateur demandeur
             var userId = await GetUserId();
-            // Return 401 if the user identity cannot be resolved
+            // Retourne 401 si l'identité de l'utilisateur ne peut pas être résolue
             if (userId == null) return Unauthorized();
 
-            // Determine which day-of-week bit corresponds to the requested date
+            // Détermination du bit de jour de la semaine correspondant à la date demandée
             var dayOfWeek = date.DayOfWeek;
 
-            // Map each day of the week to its bitmask flag value
-            // These values match the convention used when courses are saved
+            // Correspondance de chaque jour de la semaine avec sa valeur de drapeau de masque de bits
+            // Ces valeurs correspondent à la convention utilisée lors de l'enregistrement des cours
             int dayFlag = dayOfWeek switch
             {
                 DayOfWeek.Monday    => 1,   // bit 0
@@ -86,35 +78,33 @@ namespace seragenda.Controllers
                 DayOfWeek.Friday    => 16,  // bit 4
                 DayOfWeek.Saturday  => 32,  // bit 5
                 DayOfWeek.Sunday    => 64,  // bit 6
-                _                   => 0   // Should never happen (all enum values are covered)
+                _                   => 0   // Ne devrait jamais se produire (toutes les valeurs d'enum sont couvertes)
             };
 
-            // Fetch all courses for this user that are active on the requested date
-            // (i.e., the date falls inside the course's semester date range)
+            // Récupération de tous les cours de cet utilisateur actifs à la date demandée
+            // (c'est-à-dire que la date tombe dans la plage de dates semestrielles du cours)
             var courses = await _context.UserCourses
                 .Where(c => c.IdUserFk == userId && c.StartDate <= date && c.EndDate >= date)
                 .ToListAsync();
 
-            // Apply the day-of-week bitmask filter in memory
-            // (bitwise AND is not easily translated to SQL in all providers, so we filter after fetch)
+            // Application du filtre de masque de bits du jour de la semaine en mémoire
+            // (le ET binaire n'est pas facilement traduit en SQL dans tous les fournisseurs, donc on filtre après récupération)
             var filtered = courses.Where(c => (c.DaysOfWeek & dayFlag) != 0).ToList();
 
             return Ok(filtered);
         }
 
         // GET /api/courses
-        // Returns every course entry created by the current user (for calendar setup/management)
+        // Retourne toutes les entrées de cours créées par l'utilisateur courant (pour la configuration/gestion du calendrier)
         [HttpGet]
-        /// <summary>
-        /// Retrieves all course schedule entries belonging to the current user.
-        /// Used by the settings/management view to list and edit recurring courses.
-        /// </summary>
+        // Récupère toutes les entrées de planning de cours appartenant à l'utilisateur courant.
+        // Utilisé par la vue de paramètres/gestion pour lister et modifier les cours récurrents.
         public async Task<IActionResult> GetAll()
         {
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
-            // Return all courses that belong to this user, in database order
+            // Retourne tous les cours appartenant à cet utilisateur, dans l'ordre de la base de données
             var courses = await _context.UserCourses
                 .Where(c => c.IdUserFk == userId)
                 .ToListAsync();
@@ -123,37 +113,35 @@ namespace seragenda.Controllers
         }
 
         // POST /api/courses
-        // Creates a new course entry or updates an existing one (upsert pattern based on Id == 0)
+        // Crée une nouvelle entrée de cours ou met à jour une existante (pattern upsert basé sur Id == 0)
         [HttpPost]
-        /// <summary>
-        /// Creates a new course entry if the submitted Id is 0,
-        /// or updates an existing entry if a non-zero Id is provided.
-        /// The IdUserFk is always overwritten with the current user's ID to prevent
-        /// a user from modifying another user's courses.
-        /// </summary>
-        /// <param name="course">The course data to save</param>
+        // Crée une nouvelle entrée de cours si l'Id soumis est 0,
+        // ou met à jour une entrée existante si un Id non nul est fourni.
+        // L'IdUserFk est toujours écrasé avec l'ID de l'utilisateur courant pour empêcher
+        // un utilisateur de modifier les cours d'un autre utilisateur.
+        // course : les données de cours à sauvegarder
         public async Task<IActionResult> Save([FromBody] UserCourse course)
         {
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
-            // Force the owner to be the currently authenticated user regardless of what the client sent
+            // Force le propriétaire à être l'utilisateur actuellement authentifié, indépendamment de ce que le client a envoyé
             course.IdUserFk = userId.Value;
 
             if (course.Id == 0)
             {
-                // Id == 0 means this is a new record — add it to the context
+                // Id == 0 signifie que c'est un nouvel enregistrement — l'ajouter au contexte
                 _context.UserCourses.Add(course);
             }
             else
             {
-                // Non-zero Id — find the existing record and verify it belongs to this user
+                // Id non nul — recherche de l'enregistrement existant et vérification qu'il appartient à cet utilisateur
                 var existing = await _context.UserCourses
                     .FirstOrDefaultAsync(c => c.Id == course.Id && c.IdUserFk == userId);
-                // Return 404 if the record does not exist or belongs to someone else
+                // Retourne 404 si l'enregistrement n'existe pas ou appartient à quelqu'un d'autre
                 if (existing == null) return NotFound();
 
-                // Update only the mutable fields; the Id and IdUserFk are intentionally not changed
+                // Mise à jour uniquement des champs modifiables ; l'Id et l'IdUserFk ne sont intentionnellement pas modifiés
                 existing.Name       = course.Name;
                 existing.Color      = course.Color;
                 existing.StartDate  = course.StartDate;
@@ -163,32 +151,30 @@ namespace seragenda.Controllers
                 existing.DaysOfWeek = course.DaysOfWeek;
             }
 
-            // Persist the insert or update to the database
+            // Persistance de l'insertion ou de la mise à jour en base de données
             await _context.SaveChangesAsync();
-            // Return the saved course (with its new Id if it was a creation)
+            // Retourne le cours sauvegardé (avec son nouvel Id s'il s'agissait d'une création)
             return Ok(course);
         }
 
         // DELETE /api/courses/{id}
-        // Permanently removes a course entry owned by the current user
+        // Supprime définitivement une entrée de cours appartenant à l'utilisateur courant
         [HttpDelete("{id}")]
-        /// <summary>
-        /// Deletes a course entry by its ID.
-        /// Verifies that the entry belongs to the requesting user before deletion.
-        /// </summary>
-        /// <param name="id">The primary key of the course to delete</param>
+        // Supprime une entrée de cours par son ID.
+        // Vérifie que l'entrée appartient à l'utilisateur demandeur avant la suppression.
+        // id : la clé primaire du cours à supprimer
         public async Task<IActionResult> Delete(int id)
         {
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
-            // Find the course that matches both the given ID and the current user's ID
-            // This prevents a user from deleting another user's course by guessing an ID
+            // Recherche du cours correspondant à la fois à l'ID donné et à l'ID de l'utilisateur courant
+            // Cela empêche un utilisateur de supprimer le cours d'un autre utilisateur en devinant un ID
             var course = await _context.UserCourses
                 .FirstOrDefaultAsync(c => c.Id == id && c.IdUserFk == userId);
             if (course == null) return NotFound();
 
-            // Remove the entity and persist the deletion
+            // Suppression de l'entité et persistance de la suppression
             _context.UserCourses.Remove(course);
             await _context.SaveChangesAsync();
             return Ok();

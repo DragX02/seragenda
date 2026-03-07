@@ -1,171 +1,155 @@
-// Import regular expression support for pattern-based validation
+// Import du support des expressions régulières pour la validation par motif
 using System.Text.RegularExpressions;
 
 namespace seragenda.Validators
 {
-    /// <summary>
-    /// Provides static validation and sanitization methods for user-supplied input.
-    /// These methods are used throughout the authentication and registration controllers
-    /// to defend against injection attacks, XSS, and to enforce data quality rules.
-    /// All methods are stateless and thread-safe.
-    /// </summary>
+    // Fournit des méthodes statiques de validation et de désinfection pour les entrées utilisateur.
+    // Ces méthodes sont utilisées dans les contrôleurs d'authentification et d'inscription
+    // pour se défendre contre les attaques par injection, XSS, et pour garantir la qualité des données.
+    // Toutes les méthodes sont sans état et thread-safe.
     public static class InputValidator
     {
-        /// <summary>
-        /// Checks whether the given string is a syntactically valid email address.
-        /// Enforces a maximum length of 100 characters to prevent abuse.
-        /// Uses a permissive regex that accepts most real-world email formats:
-        /// "anything@anything.anything" (no whitespace, exactly one @).
-        /// </summary>
-        /// <param name="email">The email address string to validate</param>
-        /// <returns>True if the email is non-empty, within the length limit, and matches the pattern</returns>
+        // Vérifie si la chaîne donnée est une adresse e-mail syntaxiquement valide.
+        // Impose une longueur maximale de 100 caractères pour prévenir les abus.
+        // Utilise une expression régulière permissive acceptant la plupart des formats réels :
+        // "quelquechose@quelquechose.quelquechose" (pas d'espace, exactement un @).
+        // email : la chaîne d'adresse e-mail à valider
+        // Retourne true si l'e-mail est non vide, dans la limite de longueur et correspond au motif
         public static bool IsValidEmail(string email)
         {
-            // Reject null/whitespace and emails that exceed the maximum allowed length
+            // Rejeter les valeurs nulles/vides et les e-mails dépassant la longueur maximale autorisée
             if (string.IsNullOrWhiteSpace(email) || email.Length > 100)
                 return false;
 
             try
             {
-                // Regex pattern: at least one non-whitespace, non-@ character on each side of the @,
-                // and a dot-containing domain part
+                // Motif regex : au moins un caractère non espace/non @ de chaque côté du @,
+                // et une partie domaine contenant un point
                 var emailRegex = new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$");
                 return emailRegex.IsMatch(email);
             }
             catch
             {
-                // Treat any regex exception as a validation failure
+                // Toute exception regex est traitée comme un échec de validation
                 return false;
             }
         }
 
-        /// <summary>
-        /// Detects whether the input string contains patterns associated with
-        /// SQL injection or cross-site scripting (XSS) attacks.
-        /// Used as a secondary defence layer after format validation.
-        /// An empty or whitespace-only string is considered safe (returns false).
-        /// </summary>
-        /// <param name="input">The user-supplied string to scan for dangerous patterns</param>
-        /// <returns>True if a dangerous pattern is detected; false if the string is safe</returns>
+        // Détecte si la chaîne d'entrée contient des motifs associés à des attaques
+        // par injection SQL ou cross-site scripting (XSS).
+        // Utilisé comme couche de défense secondaire après la validation du format.
+        // Une chaîne vide ou composée uniquement d'espaces est considérée comme sûre (retourne false).
+        // input : la chaîne fournie par l'utilisateur à analyser pour détecter des motifs dangereux
+        // Retourne true si un motif dangereux est détecté ; false si la chaîne est sûre
         public static bool ContainsDangerousCharacters(string input)
         {
-            // Empty inputs are inherently safe
+            // Les entrées vides sont intrinsèquement sûres
             if (string.IsNullOrWhiteSpace(input))
                 return false;
 
-            // An array of regex patterns corresponding to common injection and XSS payloads
+            // Tableau de motifs regex correspondant aux charges utiles d'injection et XSS courantes
             var dangerousPatterns = new[]
             {
-                @"<script",          // Inline JavaScript via script tag
-                @"javascript:",      // JavaScript URI scheme (e.g., in href attributes)
-                @"onerror=",         // XSS event handler attribute
-                @"onload=",          // XSS event handler attribute
-                @"';--",             // SQL injection: string terminator + comment
-                @""";--",           // SQL injection: double-quote string terminator + comment
-                @"DROP\s+TABLE",     // SQL DDL: table deletion
-                @"INSERT\s+INTO",    // SQL DML: data insertion
-                @"DELETE\s+FROM",    // SQL DML: data deletion
-                @"UPDATE\s+.*\s+SET",// SQL DML: data update
-                @"EXEC\s*\(",        // SQL stored procedure execution
-                @"<iframe",          // Embedded frame injection
-                @"SELECT\s+.*\s+FROM",// SQL DQL: data exfiltration
-                @"UNION\s+SELECT",   // SQL injection: result set union
-                @"--",               // SQL inline comment (used to truncate queries)
-                @"/\*",              // SQL block comment opening
-                @"\*/",              // SQL block comment closing
-                @"xp_",              // SQL Server extended stored procedure prefix
-                @"sp_"               // SQL Server system stored procedure prefix
+                @"<script",          // JavaScript en ligne via balise script
+                @"javascript:",      // Schéma URI JavaScript (ex. dans les attributs href)
+                @"onerror=",         // Attribut de gestionnaire d'événement XSS
+                @"onload=",          // Attribut de gestionnaire d'événement XSS
+                @"';--",             // Injection SQL : terminateur de chaîne + commentaire
+                @""";--",           // Injection SQL : terminateur de chaîne guillemet double + commentaire
+                @"DROP\s+TABLE",     // DDL SQL : suppression de table
+                @"INSERT\s+INTO",    // DML SQL : insertion de données
+                @"DELETE\s+FROM",    // DML SQL : suppression de données
+                @"UPDATE\s+.*\s+SET",// DML SQL : mise à jour de données
+                @"EXEC\s*\(",        // Exécution de procédure stockée SQL
+                @"<iframe",          // Injection de frame intégrée
+                @"SELECT\s+.*\s+FROM",// DQL SQL : exfiltration de données
+                @"UNION\s+SELECT",   // Injection SQL : union d'ensembles de résultats
+                @"--",               // Commentaire en ligne SQL (utilisé pour tronquer les requêtes)
+                @"/\*",              // Ouverture de commentaire de bloc SQL
+                @"\*/",              // Fermeture de commentaire de bloc SQL
+                @"xp_",              // Préfixe de procédure stockée étendue SQL Server
+                @"sp_"               // Préfixe de procédure stockée système SQL Server
             };
 
-            // Check each pattern against the input (case-insensitive to catch mixed-case variants)
+            // Vérification de chaque motif sur l'entrée (insensible à la casse pour détecter les variantes mixtes)
             foreach (var pattern in dangerousPatterns)
             {
                 if (Regex.IsMatch(input, pattern, RegexOptions.IgnoreCase))
-                    return true; // A dangerous pattern was found
+                    return true; // Un motif dangereux a été trouvé
             }
 
-            // No dangerous patterns detected
+            // Aucun motif dangereux détecté
             return false;
         }
 
-        /// <summary>
-        /// Validates a person's name (first name or last name).
-        /// Allows only letters (including accented Latin characters), spaces, hyphens, and apostrophes.
-        /// Enforces a maximum length of 50 characters.
-        /// </summary>
-        /// <param name="name">The name string to validate</param>
-        /// <returns>True if the name is non-empty, within the length limit, and contains only allowed characters</returns>
+        // Valide le nom d'une personne (prénom ou nom de famille).
+        // Autorise uniquement les lettres (y compris les caractères latins accentués), les espaces, les traits d'union et les apostrophes.
+        // Impose une longueur maximale de 50 caractères.
+        // name : la chaîne de nom à valider
+        // Retourne true si le nom est non vide, dans la limite de longueur et contient uniquement les caractères autorisés
         public static bool IsValidName(string name)
         {
-            // Reject null/whitespace and names exceeding 50 characters
+            // Rejeter les valeurs nulles/vides et les noms dépassant 50 caractères
             if (string.IsNullOrWhiteSpace(name) || name.Length > 50)
                 return false;
 
-            // Allow uppercase and lowercase ASCII letters, accented Latin characters (À-ÿ),
-            // spaces, hyphens, and apostrophes — common in French and other European names
+            // Autoriser les lettres ASCII majuscules et minuscules, les caractères latins accentués (À-ÿ),
+            // les espaces, les traits d'union et les apostrophes — courants dans les noms français et européens
             var nameRegex = new Regex(@"^[a-zA-ZÀ-ÿ\s\-']+$");
             return nameRegex.IsMatch(name);
         }
 
-        /// <summary>
-        /// Validates that a text value falls within a specified length range.
-        /// Returns false if the string is null or whitespace.
-        /// </summary>
-        /// <param name="text">The text to check</param>
-        /// <param name="minLength">The minimum required number of characters (inclusive)</param>
-        /// <param name="maxLength">The maximum allowed number of characters (inclusive)</param>
-        /// <returns>True if the text length is within [minLength, maxLength]; false otherwise</returns>
+        // Valide qu'une valeur textuelle se situe dans une plage de longueur spécifiée.
+        // Retourne false si la chaîne est null ou composée uniquement d'espaces.
+        // text : le texte à vérifier
+        // minLength : le nombre minimal de caractères requis (inclus)
+        // maxLength : le nombre maximal de caractères autorisés (inclus)
+        // Retourne true si la longueur du texte est dans [minLength, maxLength] ; false sinon
         public static bool IsValidLength(string text, int minLength, int maxLength)
         {
-            // Null or whitespace-only strings are considered invalid regardless of the range
+            // Les chaînes nulles ou composées uniquement d'espaces sont considérées invalides quelle que soit la plage
             if (string.IsNullOrWhiteSpace(text))
                 return false;
 
-            // Check that the length falls within the inclusive range
+            // Vérification que la longueur se situe dans la plage inclusive
             return text.Length >= minLength && text.Length <= maxLength;
         }
 
-        /// <summary>
-        /// Validates a password string.
-        /// Requires between 6 and 100 characters (inclusive).
-        /// Does not enforce complexity rules (uppercase, digits, symbols) — only length.
-        /// </summary>
-        /// <param name="password">The plaintext password to validate (never stored)</param>
-        /// <returns>True if the password is non-empty and within the allowed length range</returns>
+        // Valide une chaîne de mot de passe.
+        // Requiert entre 6 et 100 caractères (inclus).
+        // N'impose pas de règles de complexité (majuscules, chiffres, symboles) — uniquement la longueur.
+        // password : le mot de passe en clair à valider (jamais stocké)
+        // Retourne true si le mot de passe est non vide et dans la plage de longueur autorisée
         public static bool IsValidPassword(string password)
         {
-            // Reject null or whitespace-only passwords
+            // Rejeter les mots de passe nuls ou composés uniquement d'espaces
             if (string.IsNullOrWhiteSpace(password))
                 return false;
 
-            // Enforce the minimum length of 6 and maximum length of 100
+            // Vérification de la longueur minimale de 6 et maximale de 100
             return password.Length >= 6 && password.Length <= 100;
         }
 
-        /// <summary>
-        /// Sanitizes a user-supplied string by HTML-encoding the five special HTML characters
-        /// (&lt;, &gt;, ", ', /) and trimming surrounding whitespace.
-        /// Used for names and other display strings before storing them in the database,
-        /// so that if the value is ever rendered in HTML, it will not be interpreted as markup.
-        /// </summary>
-        /// <param name="input">The raw user input to sanitize</param>
-        /// <returns>
-        /// The sanitized string with dangerous HTML characters replaced by their entity equivalents,
-        /// or an empty string if the input is null or whitespace.
-        /// </returns>
+        // Désinfecte une chaîne fournie par l'utilisateur en encodant en HTML les cinq caractères HTML spéciaux
+        // (<, >, ", ', /) et en supprimant les espaces environnants.
+        // Utilisé pour les noms et autres chaînes d'affichage avant leur stockage en base de données,
+        // afin que si la valeur est un jour rendue en HTML, elle ne soit pas interprétée comme du balisage.
+        // input : la saisie brute de l'utilisateur à désinfecter
+        // Retourne la chaîne désinfectée avec les caractères HTML dangereux remplacés par leurs équivalents entité,
+        // ou une chaîne vide si l'entrée est null ou composée uniquement d'espaces.
         public static string SanitizeInput(string input)
         {
-            // Return an empty string for null or whitespace-only input
+            // Retourner une chaîne vide pour une entrée null ou composée uniquement d'espaces
             if (string.IsNullOrWhiteSpace(input))
                 return string.Empty;
 
             return input
-                .Replace("<",  "&lt;")    // Prevents opening of HTML tags
-                .Replace(">",  "&gt;")    // Prevents closing of HTML tags
-                .Replace("\"", "&quot;")  // Prevents breaking out of HTML attribute double quotes
-                .Replace("'",  "&#x27;")  // Prevents breaking out of HTML attribute single quotes
-                .Replace("/",  "&#x2F;")  // Prevents self-closing tag patterns (e.g., />)
-                .Trim();                  // Remove surrounding whitespace after encoding
+                .Replace("<",  "&lt;")    // Empêche l'ouverture de balises HTML
+                .Replace(">",  "&gt;")    // Empêche la fermeture de balises HTML
+                .Replace("\"", "&quot;")  // Empêche la sortie des guillemets doubles d'attribut HTML
+                .Replace("'",  "&#x27;")  // Empêche la sortie des guillemets simples d'attribut HTML
+                .Replace("/",  "&#x2F;")  // Empêche les motifs de balise auto-fermante (ex. />)
+                .Trim();                  // Suppression des espaces environnants après encodage
         }
     }
 }

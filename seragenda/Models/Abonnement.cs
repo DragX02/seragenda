@@ -1,39 +1,37 @@
-// Import base .NET types (DateOnly, etc.)
+// Importation des types .NET de base (DateOnly, etc.)
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents a subscription period for a user account.
-/// An Abonnement tracks the type, start/end dates, and active status of a user's access subscription.
-/// A user may have multiple subscription records over time (e.g., trial → premium → renewal).
-/// The database default status is "Actif" when a new subscription is created.
-/// </summary>
+// Représente une période d'abonnement pour un compte utilisateur.
+// Un Abonnement suit le type, les dates de début/fin et le statut actif de l'accès d'un utilisateur.
+// Un utilisateur peut avoir plusieurs enregistrements d'abonnement au fil du temps (ex. : essai → premium → renouvellement).
+// Le statut par défaut en base de données est "Actif" lors de la création d'un nouvel abonnement.
 public partial class Abonnement
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdAbonnement { get; set; }
 
-    // Foreign key to the Utilisateur table; identifies which user this subscription belongs to
+    // Clé étrangère vers la table Utilisateur ; identifie l'utilisateur auquel cet abonnement appartient
     public int IdUserFk { get; set; }
 
-    // The first day on which this subscription is active (inclusive)
+    // Premier jour d'activité de cet abonnement (inclus)
     public DateOnly DateDebut { get; set; }
 
-    // The last day on which this subscription is active (inclusive)
+    // Dernier jour d'activité de cet abonnement (inclus)
     public DateOnly DateFin { get; set; }
 
-    // Subscription tier or type descriptor (e.g., "Premium", "Trial", "Annuel")
-    // May be null if the type has not been assigned
+    // Niveau ou type d'abonnement (ex. : "Premium", "Essai", "Annuel")
+    // Peut être null si le type n'a pas encore été assigné
     public string? TypeAbo { get; set; }
 
-    // Current status of the subscription (e.g., "Actif", "Expiré", "Annulé")
-    // Defaults to "Actif" in the database when a new record is inserted
+    // Statut actuel de l'abonnement (ex. : "Actif", "Expiré", "Annulé")
+    // Par défaut "Actif" en base de données lors de l'insertion d'un nouvel enregistrement
     public string? Statut { get; set; }
 
-    // Navigation property: the full Utilisateur record of the subscription's owner
+    // Propriété de navigation : l'enregistrement Utilisateur complet du propriétaire de l'abonnement
     public virtual Utilisateur IdUserFkNavigation { get; set; } = null!;
 }

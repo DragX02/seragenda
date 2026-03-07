@@ -1,37 +1,35 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Records which book chapters are used (or recommended) for a specific course-level combination.
-/// A single UtilisationChapitre entry links a Chapitre (chapter) to a CoursNiveau (subject + level)
-/// and captures the usage status (e.g., "Recommandé", "Obligatoire").
-/// This allows teachers to see which chapters of their textbooks are relevant for each class.
-/// The database default status is "Recommandé" when a new record is created.
-/// </summary>
+// Enregistre quels chapitres de manuels sont utilisés (ou recommandés) pour une combinaison cours-niveau spécifique.
+// Un enregistrement UtilisationChapitre relie un Chapitre (chapitre) à un CoursNiveau (matière + niveau)
+// et capture le statut d'utilisation (ex. : "Recommandé", "Obligatoire").
+// Cela permet aux enseignants de voir quels chapitres de leurs manuels sont pertinents pour chaque classe.
+// Le statut par défaut en base de données est "Recommandé" lors de la création d'un nouvel enregistrement.
 public partial class UtilisationChapitre
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdUtilisation { get; set; }
 
-    // Foreign key to the Chapitre being referenced
+    // Clé étrangère vers le Chapitre référencé
     public int IdChapitreFk { get; set; }
 
-    // Foreign key to the CoursNiveau (subject + level combination) this chapter is used for
+    // Clé étrangère vers le CoursNiveau (combinaison matière + niveau) pour lequel ce chapitre est utilisé
     public int IdCoursNiveauFk { get; set; }
 
-    // Usage status descriptor; defaults to "Recommandé" in the database
-    // Possible values: "Recommandé", "Obligatoire", "Optionnel", etc.
-    // May be null if no status has been explicitly set
+    // Descripteur du statut d'utilisation ; par défaut "Recommandé" en base de données
+    // Valeurs possibles : "Recommandé", "Obligatoire", "Optionnel", etc.
+    // Peut être null si aucun statut n'a été explicitement défini
     public string? Statut { get; set; }
 
-    // Navigation property: the full Chapitre record being referenced
+    // Propriété de navigation : l'enregistrement Chapitre complet référencé
     public virtual Chapitre IdChapitreFkNavigation { get; set; } = null!;
 
-    // Navigation property: the full CoursNiveau record (subject + level + teacher) for this usage
+    // Propriété de navigation : l'enregistrement CoursNiveau complet (matière + niveau + enseignant) pour cette utilisation
     public virtual CoursNiveau IdCoursNiveauFkNavigation { get; set; } = null!;
 }

@@ -1,27 +1,25 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents a specific cognitive or pedagogical aptitude in the curriculum model.
-/// An Aptitude is a fine-grained observable skill or behaviour
-/// (e.g., "to summarise a text", "to solve a linear equation").
-/// Aptitudes are linked to mastery targets (ViseesMaitriser) and competencies
-/// through the AppartenirViseeAptitude join table.
-/// </summary>
+// Représente une aptitude cognitive ou pédagogique spécifique dans le modèle curriculaire.
+// Une Aptitude est un savoir-faire ou comportement observable à grain fin
+// (ex. : "résumer un texte", "résoudre une équation du premier degré").
+// Les aptitudes sont liées aux visées à maîtriser (ViseesMaitriser) et aux compétences
+// via la table de jointure AppartenirViseeAptitude.
 public partial class Aptitude
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdAptitude { get; set; }
 
-    // Descriptive name of the aptitude (e.g., "Lire à voix haute", "Résoudre une équation")
-    // Maximum length is 50 characters as defined in the database schema
+    // Nom descriptif de l'aptitude (ex. : "Lire à voix haute", "Résoudre une équation")
+    // Longueur maximale : 50 caractères, telle que définie dans le schéma de base de données
     public string NomAptitude { get; set; } = null!;
 
-    // Navigation property: all mastery-target/competency links that reference this aptitude
+    // Propriété de navigation : tous les liens visée à maîtriser / compétence qui référencent cette aptitude
     public virtual ICollection<AppartenirViseeAptitude> AppartenirViseeAptitudes { get; set; } = new List<AppartenirViseeAptitude>();
 }

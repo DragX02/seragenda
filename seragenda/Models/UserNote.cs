@@ -1,42 +1,40 @@
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents a personal timed note entry in a teacher's daily agenda.
-/// Each note is attached to a specific calendar date and occupies one or more
-/// consecutive hour slots within the agenda grid (which spans from 06:00 to 23:00).
-/// Content is stored as sanitized plain text (all HTML stripped server-side).
-/// </summary>
+// Représente une entrée de note personnelle horodatée dans l'agenda quotidien d'un enseignant.
+// Chaque note est attachée à une date calendaire spécifique et occupe un ou plusieurs
+// créneaux horaires consécutifs dans la grille de l'agenda (qui s'étend de 06h00 à 23h00).
+// Le contenu est stocké sous forme de texte brut assaini (toutes les balises HTML supprimées côté serveur).
 public class UserNote
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int Id { get; set; }
 
-    // Foreign key to the Utilisateur table; identifies the teacher who owns this note
+    // Clé étrangère vers la table Utilisateur ; identifie l'enseignant propriétaire de cette note
     public int IdUserFk { get; set; }
 
-    // The calendar date this note belongs to (time component is always midnight / ignored)
+    // La date calendaire à laquelle cette note appartient (la composante heure est toujours minuit / ignorée)
     public DateTime Date { get; set; }
 
-    // The hour at which this note starts on the agenda grid.
-    // Valid range: 6 (6:00 AM) to 22 (10:00 PM)
+    // L'heure à laquelle cette note commence dans la grille de l'agenda.
+    // Plage valide : 6 (6h00) à 22 (22h00)
     public int Hour { get; set; }
 
-    // The hour at which this note ends on the agenda grid (exclusive upper bound).
-    // Valid range: 7 to 23; must be strictly greater than Hour.
+    // L'heure à laquelle cette note se termine dans la grille de l'agenda (borne supérieure exclusive).
+    // Plage valide : 7 à 23 ; doit être strictement supérieure à Hour.
     public int EndHour { get; set; }
 
-    // The text content of the note; HTML tags are stripped server-side before storage.
-    // Maximum length enforced server-side: 2000 characters.
+    // Le contenu textuel de la note ; les balises HTML sont supprimées côté serveur avant le stockage.
+    // Longueur maximale imposée côté serveur : 2000 caractères.
     public string Content { get; set; } = string.Empty;
 
-    // UTC timestamp of when this note was first created
+    // Horodatage UTC de la première création de cette note
     public DateTime CreatedAt { get; set; }
 
-    // UTC timestamp of the most recent modification to this note's content or time slot
+    // Horodatage UTC de la dernière modification du contenu ou du créneau horaire de cette note
     public DateTime ModifiedAt { get; set; }
 
-    // Navigation property back to the owning Utilisateur record
-    // Marked as nullable because it is not always eagerly loaded
+    // Propriété de navigation vers l'enregistrement Utilisateur propriétaire
+    // Marquée comme nullable car elle n'est pas toujours chargée en mode eager
     public virtual Utilisateur? User { get; set; }
 }

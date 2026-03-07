@@ -1,32 +1,30 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Links a book chapter (Chapitre) to a planned lesson session (Planification),
-/// recording which chapter(s) will be used as instructional resources during the session.
-/// A single session can reference multiple chapters, and the same chapter can appear
-/// across multiple sessions.
-/// This is a pure join table with its own surrogate primary key for easier management.
-/// </summary>
+// Relie un chapitre de manuel (Chapitre) à une séance de cours planifiée (Planification),
+// enregistrant quel(s) chapitre(s) sera(seront) utilisé(s) comme ressources pédagogiques durant la séance.
+// Une même séance peut référencer plusieurs chapitres, et le même chapitre peut apparaître
+// dans plusieurs séances.
+// Il s'agit d'une table de jointure pure avec sa propre clé primaire de substitution pour une gestion facilitée.
 public partial class SeanceRessource
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdSeanceRes { get; set; }
 
-    // Foreign key to the Planification (lesson session) that uses this resource
+    // Clé étrangère vers la Planification (séance de cours) qui utilise cette ressource
     public int IdPlanningFk { get; set; }
 
-    // Foreign key to the Chapitre (book chapter) being referenced as a resource
+    // Clé étrangère vers le Chapitre (chapitre de manuel) référencé comme ressource
     public int IdChapitreFk { get; set; }
 
-    // Navigation property: the full Chapitre record for the referenced book chapter
+    // Propriété de navigation : l'enregistrement Chapitre complet pour le chapitre de manuel référencé
     public virtual Chapitre IdChapitreFkNavigation { get; set; } = null!;
 
-    // Navigation property: the full Planification (lesson session) record
+    // Propriété de navigation : l'enregistrement Planification (séance de cours) complet
     public virtual Planification IdPlanningFkNavigation { get; set; } = null!;
 }

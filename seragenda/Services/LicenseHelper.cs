@@ -1,37 +1,31 @@
-// Import the SHA-256 cryptographic hash algorithm
+// Import de l'algorithme de hachage cryptographique SHA-256
 using System.Security.Cryptography;
-// Import UTF-8 text encoding for converting strings to bytes before hashing
+// Import de l'encodage UTF-8 pour convertir les chaînes en octets avant le hachage
 using System.Text;
 
 namespace seragenda.Services
 {
-    /// <summary>
-    /// Utility class for securely handling license key codes.
-    /// License codes are never stored in plaintext in the database.
-    /// Instead, their SHA-256 hash (hex lowercase) is stored, and every comparison
-    /// is done by hashing the submitted code and comparing it against the stored hash.
-    /// This prevents license codes from being exposed if the database is compromised.
-    /// </summary>
+    // Classe utilitaire pour la gestion sécurisée des codes de licence.
+    // Les codes de licence ne sont jamais stockés en clair dans la base de données.
+    // À la place, leur hachage SHA-256 (hex minuscule) est stocké, et toute comparaison
+    // s'effectue en hachant le code soumis et en le comparant au hachage stocké.
+    // Cela protège les codes de licence en cas de compromission de la base de données.
     public static class LicenseHelper
     {
-        /// <summary>
-        /// Computes the SHA-256 hash of a license code and returns it as a lowercase hex string.
-        /// The input code is trimmed and uppercased before hashing to ensure that
-        /// "abc123", "ABC123", and " ABC123 " all produce the same hash.
-        /// </summary>
-        /// <param name="code">The plaintext license code to hash (e.g., "PROF-DUPONT")</param>
-        /// <returns>
-        /// A 64-character lowercase hex string representing the SHA-256 digest of the normalised code.
-        /// This value is safe to store in the database.
-        /// </returns>
+        // Calcule le hachage SHA-256 d'un code de licence et le retourne sous forme de chaîne hex minuscule.
+        // Le code est rogné et mis en majuscules avant le hachage afin que
+        // "abc123", "ABC123" et " ABC123 " produisent tous le même hachage.
+        // code : le code de licence en clair à hacher (ex. "PROF-DUPONT")
+        // Retourne une chaîne hex minuscule de 64 caractères représentant le condensat SHA-256 du code normalisé.
+        // Cette valeur peut être stockée en toute sécurité dans la base de données.
         public static string HashCode(string code)
         {
-            // Normalise: remove surrounding whitespace and force uppercase before hashing.
-            // This guarantees that case and padding differences do not produce different hashes.
+            // Normalisation : suppression des espaces et mise en majuscules avant le hachage.
+            // Garantit que les différences de casse et d'espacement ne produisent pas des hachages différents.
             var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(code.Trim().ToUpper()));
 
-            // Convert the 32-byte hash to a 64-character lowercase hex string.
-            // ToLower() ensures consistent storage regardless of the platform's default casing.
+            // Conversion des 32 octets du hachage en une chaîne hex minuscule de 64 caractères.
+            // ToLower() assure un stockage cohérent quel que soit la casse par défaut de la plateforme.
             return Convert.ToHexString(bytes).ToLower();
         }
     }

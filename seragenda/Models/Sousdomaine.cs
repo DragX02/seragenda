@@ -1,34 +1,32 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents a sub-domain within a pedagogical domain (Domaine).
-/// Sub-domains provide a finer level of curriculum organisation below domains.
-/// For example, the domain "Algebra" might contain sub-domains like
-/// "Linear equations" and "Quadratic equations".
-/// Learning objectives (Visee) can be linked to a sub-domain for precise classification.
-/// Maximum name length: 50 characters (database constraint, column "nom_comp").
-/// </summary>
+// Représente un sous-domaine au sein d'un domaine pédagogique (Domaine).
+// Les sous-domaines offrent un niveau d'organisation curriculaire plus fin en dessous des domaines.
+// Par exemple, le domaine "Algèbre" pourrait contenir les sous-domaines
+// "Équations du premier degré" et "Équations du second degré".
+// Les objectifs d'apprentissage (Visee) peuvent être liés à un sous-domaine pour une classification précise.
+// Longueur maximale du nom : 50 caractères (contrainte de base de données, colonne "nom_comp").
 public partial class Sousdomaine
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdSousDomaine { get; set; }
 
-    // Display name / short description of the sub-domain (stored in column "nom_comp")
-    // Maximum length: 50 characters
+    // Nom d'affichage / courte description du sous-domaine (stocké dans la colonne "nom_comp")
+    // Longueur maximale : 50 caractères
     public string NomComp { get; set; } = null!;
 
-    // Foreign key to the parent Domaine record
+    // Clé étrangère vers l'enregistrement Domaine parent
     public int IdDomFk { get; set; }
 
-    // Navigation property: the full Domaine record that contains this sub-domain
+    // Propriété de navigation : l'enregistrement Domaine complet qui contient ce sous-domaine
     public virtual Domaine IdDomFkNavigation { get; set; } = null!;
 
-    // Navigation property: all learning objectives (visées) that belong to this sub-domain
+    // Propriété de navigation : tous les objectifs d'apprentissage (visées) qui appartiennent à ce sous-domaine
     public virtual ICollection<Visee> Visees { get; set; } = new List<Visee>();
 }

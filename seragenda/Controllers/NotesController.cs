@@ -1,50 +1,44 @@
-// Import ASP.NET Core authorization attributes
+// Importation des attributs d'autorisation ASP.NET Core
 using Microsoft.AspNetCore.Authorization;
-// Import base MVC/API controller types and result helpers
+// Importation des types de contrôleur MVC/API de base et des helpers de résultat
 using Microsoft.AspNetCore.Mvc;
-// Import Entity Framework Core for async database operations
+// Importation d'Entity Framework Core pour les opérations asynchrones en base de données
 using Microsoft.EntityFrameworkCore;
-// Import project models
+// Importation des modèles du projet
 using seragenda.Models;
-// Import Claims support for reading the current user's identity from the JWT
+// Importation du support des Claims pour lire l'identité de l'utilisateur courant depuis le JWT
 using System.Security.Claims;
 
 namespace seragenda.Controllers
 {
-    // All routes in this controller are prefixed with /api/notes
+    // Toutes les routes de ce contrôleur sont préfixées par /api/notes
     [Route("api/[controller]")]
-    // Marks this class as an API controller
+    // Marque cette classe comme contrôleur API
     [ApiController]
-    // Requires a valid JWT token on all endpoints — unauthenticated requests are rejected
+    // Nécessite un jeton JWT valide sur tous les points de terminaison — les requêtes non authentifiées sont rejetées
     [Authorize]
-    /// <summary>
-    /// Manages personal timed notes (agenda entries) for the authenticated user.
-    /// Each note belongs to a single calendar day and occupies a specific hour slot (6–22).
-    /// Notes support HTML-stripped plain-text content up to 2000 characters.
-    /// </summary>
+    // Gère les notes temporisées personnelles (entrées d'agenda) pour l'utilisateur authentifié.
+    // Chaque note appartient à un seul jour calendaire et occupe un créneau horaire spécifique (6–22).
+    // Les notes supportent un contenu texte brut sans HTML, limité à 2000 caractères.
     public class NotesController : ControllerBase
     {
-        // Entity Framework database context for reading and writing UserNote records
+        // Contexte de base de données Entity Framework pour lire et écrire les enregistrements UserNote
         private readonly AgendaContext _context;
 
-        /// <summary>
-        /// Constructor — receives the database context via dependency injection.
-        /// </summary>
-        /// <param name="context">The EF Core database context</param>
+        // Constructeur — reçoit le contexte de base de données par injection de dépendances.
+        // context : le contexte de base de données EF Core
         public NotesController(AgendaContext context)
         {
             _context = context;
         }
 
-        /// <summary>
-        /// Resolves the integer primary key of the currently authenticated user
-        /// by looking up their email address (stored as the JWT Name claim) in the database.
-        /// Returns null if the claim is missing or the user record cannot be found.
-        /// </summary>
-        /// <returns>The user's IdUser, or null if not found</returns>
+        // Résout la clé primaire entière de l'utilisateur actuellement authentifié
+        // en recherchant son adresse email (stockée comme claim Name du JWT) en base de données.
+        // Retourne null si le claim est absent ou si l'enregistrement utilisateur est introuvable.
+        // Retourne l'IdUser de l'utilisateur, ou null s'il est introuvable
         private async Task<int?> GetUserId()
         {
-            // The Name claim was set to the user's email at login time
+            // Le claim Name a été défini sur l'email de l'utilisateur au moment de la connexion
             var email = User.FindFirst(ClaimTypes.Name)?.Value;
             if (email == null) return null;
             var user = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.Email == email);
@@ -52,23 +46,21 @@ namespace seragenda.Controllers
         }
 
         // GET /api/notes/date/{date}
-        // Returns all notes for the current user on the specified calendar date
+        // Retourne toutes les notes de l'utilisateur courant à la date calendaire spécifiée
         [HttpGet("date/{date}")]
-        /// <summary>
-        /// Retrieves all notes belonging to the current user on a specific date,
-        /// ordered by hour (earliest first).
-        /// </summary>
-        /// <param name="date">The target date, parsed from the route segment</param>
+        // Récupère toutes les notes appartenant à l'utilisateur courant à une date spécifique,
+        // ordonnées par heure (la plus ancienne en premier).
+        // date : la date cible, analysée depuis le segment de route
         public async Task<IActionResult> GetNotesForDate(DateTime date)
         {
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
-            // Compute the inclusive start and exclusive end of the target calendar day
-            var dayStart = date.Date;                  // Midnight at the start of the day
-            var dayEnd   = dayStart.AddDays(1);        // Midnight at the start of the next day
+            // Calcul du début et de la fin inclusive du jour calendaire cible
+            var dayStart = date.Date;                  // Minuit au début du jour
+            var dayEnd   = dayStart.AddDays(1);        // Minuit au début du jour suivant
 
-            // Fetch notes that fall within this day window, ordered by their hour slot
+            // Récupération des notes qui tombent dans cette fenêtre journalière, ordonnées par créneau horaire
             var notes = await _context.UserNotes
                 .Where(n => n.IdUserFk == userId && n.Date >= dayStart && n.Date < dayEnd)
                 .OrderBy(n => n.Hour)
@@ -78,58 +70,54 @@ namespace seragenda.Controllers
         }
 
         // GET /api/notes/range?start=...&end=...
-        // Returns all notes for the current user within a date range (max 62 days to prevent abuse)
+        // Retourne toutes les notes de l'utilisateur courant dans une plage de dates (max 62 jours pour prévenir les abus)
         [HttpGet("range")]
-        /// <summary>
-        /// Retrieves all notes belonging to the current user within a date range.
-        /// The range is capped at 62 days to prevent excessively large responses.
-        /// Results are sorted by date and then by hour within each day.
-        /// </summary>
-        /// <param name="start">First day of the range (inclusive)</param>
-        /// <param name="end">Last day of the range (inclusive)</param>
+        // Récupère toutes les notes appartenant à l'utilisateur courant dans une plage de dates.
+        // La plage est limitée à 62 jours pour prévenir des réponses excessivement volumineuses.
+        // Les résultats sont triés par date puis par heure dans chaque jour.
+        // start : premier jour de la plage (inclus)
+        // end : dernier jour de la plage (inclus)
         public async Task<IActionResult> GetNotesForRange([FromQuery] DateTime start, [FromQuery] DateTime end)
         {
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
-            // Reject ranges longer than approximately two months to avoid resource exhaustion
+            // Rejet des plages de plus d'environ deux mois pour éviter l'épuisement des ressources
             if ((end - start).TotalDays > 62) return BadRequest("Plage trop grande.");
 
-            // Fetch notes that fall within [start.Date, end.Date] inclusive
+            // Récupération des notes qui tombent dans [start.Date, end.Date] inclus
             var notes = await _context.UserNotes
                 .Where(n => n.IdUserFk == userId && n.Date >= start.Date && n.Date <= end.Date)
-                .OrderBy(n => n.Date)  // Sort by date first (chronological order across days)
-                .ThenBy(n => n.Hour)   // Then by hour within each day
+                .OrderBy(n => n.Date)  // Tri par date en premier (ordre chronologique entre les jours)
+                .ThenBy(n => n.Hour)   // Puis par heure dans chaque jour
                 .ToListAsync();
 
             return Ok(notes);
         }
 
         // POST /api/notes
-        // Creates a new note (Id == 0) or updates an existing one (non-zero Id)
+        // Crée une nouvelle note (Id == 0) ou met à jour une existante (Id non nul)
         [HttpPost]
-        /// <summary>
-        /// Creates or updates a note entry.
-        /// Applies server-side sanitization to the content (strips dangerous HTML tags).
-        /// Enforces valid hour ranges (6–22 for start, 7–23 for end).
-        /// The date is normalized to midnight to prevent timezone-offset issues.
-        /// </summary>
-        /// <param name="note">The note data submitted by the client</param>
+        // Crée ou met à jour une entrée de note.
+        // Applique une assainissement côté serveur au contenu (supprime les balises HTML dangereuses).
+        // Impose des plages d'heures valides (6–22 pour le début, 7–23 pour la fin).
+        // La date est normalisée à minuit pour prévenir les problèmes de décalage de fuseau horaire.
+        // note : les données de note soumises par le client
         public async Task<IActionResult> Save([FromBody] UserNote note)
         {
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
-            // Strip the time component from the date and mark it as timezone-unspecified.
-            // This prevents UTC vs. local time offset from shifting the note to a different calendar day.
+            // Suppression de la composante heure de la date et marquage comme timezone non spécifiée.
+            // Cela empêche le décalage UTC vs. heure locale de déplacer la note vers un autre jour calendaire.
             note.Date = new DateTime(note.Date.Year, note.Date.Month, note.Date.Day, 0, 0, 0, DateTimeKind.Unspecified);
 
-            // --- Content sanitization ---
-            // Trim leading/trailing whitespace and ensure the field is not null
+            // --- Assainissement du contenu ---
+            // Suppression des espaces de début/fin et garantie que le champ n'est pas null
             note.Content = note.Content?.Trim() ?? string.Empty;
 
-            // First pass: remove the inner content of dangerous block-level elements
-            // (script, style, iframe, object, embed) including their tags
+            // Premier passage : suppression du contenu interne des éléments de bloc dangereux
+            // (script, style, iframe, object, embed) y compris leurs balises
             note.Content = System.Text.RegularExpressions.Regex.Replace(
                 note.Content,
                 @"<(script|style|iframe|object|embed)[^>]*>.*?<\/\1>",
@@ -137,69 +125,67 @@ namespace seragenda.Controllers
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase |
                 System.Text.RegularExpressions.RegexOptions.Singleline);
 
-            // Second pass: strip all remaining HTML tags (e.g., <b>, <p>, <a href="...">)
+            // Deuxième passage : suppression de toutes les balises HTML restantes (ex. : <b>, <p>, <a href="...">)
             note.Content = System.Text.RegularExpressions.Regex.Replace(note.Content, "<[^>]*>", string.Empty);
 
-            // Enforce a 2000-character maximum to prevent storage abuse
+            // Imposition d'un maximum de 2000 caractères pour prévenir les abus de stockage
             if (note.Content.Length > 2000) note.Content = note.Content[..2000];
 
-            // --- Hour validation ---
-            // The agenda grid starts at 6 and ends at 22; reject start hours outside this range
+            // --- Validation des heures ---
+            // La grille d'agenda commence à 6 et se termine à 22 ; rejet des heures de début hors de cette plage
             if (note.Hour < 6 || note.Hour > 22) return BadRequest("Heure de début invalide.");
 
-            // EndHour must be strictly after Hour and within the grid boundary (max 23)
-            // If invalid, clamp EndHour to one hour after the start
+            // EndHour doit être strictement après Hour et dans la limite de la grille (max 23)
+            // Si invalide, EndHour est limité à une heure après le début
             if (note.EndHour <= note.Hour || note.EndHour > 23) note.EndHour = note.Hour + 1;
 
-            // Force the owner to the currently authenticated user
+            // Force le propriétaire à être l'utilisateur actuellement authentifié
             note.IdUserFk = userId.Value;
 
             if (note.Id == 0)
             {
-                // New note — record both creation and modification timestamps
+                // Nouvelle note — enregistrement des horodatages de création et de modification
                 note.CreatedAt  = DateTime.UtcNow;
                 note.ModifiedAt = DateTime.UtcNow;
                 _context.UserNotes.Add(note);
             }
             else
             {
-                // Existing note — verify it belongs to the current user before updating
+                // Note existante — vérification qu'elle appartient à l'utilisateur courant avant la mise à jour
                 var existing = await _context.UserNotes
                     .FirstOrDefaultAsync(n => n.Id == note.Id && n.IdUserFk == userId);
                 if (existing == null) return NotFound();
 
-                // Update only the content and timing fields; creation timestamp is immutable
+                // Mise à jour uniquement des champs de contenu et de timing ; l'horodatage de création est immuable
                 existing.Content    = note.Content;
                 existing.Hour       = note.Hour;
                 existing.EndHour    = note.EndHour;
                 existing.ModifiedAt = DateTime.UtcNow;
             }
 
-            // Persist the insert or update
+            // Persistance de l'insertion ou de la mise à jour
             await _context.SaveChangesAsync();
             return Ok(note);
         }
 
         // DELETE /api/notes/{id}
-        // Permanently removes a note owned by the current user
+        // Supprime définitivement une note appartenant à l'utilisateur courant
         [HttpDelete("{id}")]
-        /// <summary>
-        /// Deletes a note by its ID.
-        /// Verifies that the note belongs to the requesting user before deletion.
-        /// </summary>
-        /// <param name="id">The primary key of the note to delete</param>
+        // Supprime une note par son ID.
+        // Vérifie que la note appartient à l'utilisateur demandeur avant la suppression.
+        // id : la clé primaire de la note à supprimer
         public async Task<IActionResult> Delete(int id)
         {
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
-            // Find the note that matches both the given ID and the current user's ID
-            // (prevents users from deleting other users' notes by guessing IDs)
+            // Recherche de la note correspondant à la fois à l'ID donné et à l'ID de l'utilisateur courant
+            // (empêche les utilisateurs de supprimer les notes d'autres utilisateurs en devinant des ID)
             var note = await _context.UserNotes
                 .FirstOrDefaultAsync(n => n.Id == id && n.IdUserFk == userId);
             if (note == null) return NotFound();
 
-            // Remove the note entity and persist the deletion
+            // Suppression de l'entité note et persistance de la suppression
             _context.UserNotes.Remove(note);
             await _context.SaveChangesAsync();
             return Ok();

@@ -1,293 +1,289 @@
-// Import ASP.NET Core Data Protection for encrypting cookies (OAuth correlation, auth_pending)
+// Import de la protection des données ASP.NET Core pour chiffrer les cookies (corrélation OAuth, auth_pending)
 using Microsoft.AspNetCore.DataProtection;
-// Import rate limiting middleware and policies
+// Import du middleware de limitation de débit et des politiques associées
 using Microsoft.AspNetCore.RateLimiting;
-// Import Entity Framework Core for database context registration
+// Import d'Entity Framework Core pour l'enregistrement du contexte de base de données
 using Microsoft.EntityFrameworkCore;
-// Import the project's own namespace for AgendaContext
+// Import de l'espace de noms du projet pour AgendaContext
 using seragenda;
-// Import the project's service implementations
+// Import des implémentations de services du projet
 using seragenda.Services;
-// Import JWT Bearer authentication handler
+// Import du gestionnaire d'authentification JWT Bearer
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-// Import Cookie authentication handler (used as the sign-in scheme for OAuth)
+// Import du gestionnaire d'authentification par cookie (utilisé comme schéma de connexion pour OAuth)
 using Microsoft.AspNetCore.Authentication.Cookies;
-// Import JWT token validation parameters
+// Import des paramètres de validation des jetons JWT
 using Microsoft.IdentityModel.Tokens;
-// Import ForwardedHeaders middleware for running behind nginx/reverse proxy
+// Import du middleware ForwardedHeaders pour fonctionner derrière nginx/proxy inverse
 using Microsoft.AspNetCore.HttpOverrides;
-// Import text encoding for converting the JWT secret key to bytes
+// Import de l'encodage texte pour convertir la clé secrète JWT en octets
 using System.Text;
-// Import rate limiting options and partitions
+// Import des options de limitation de débit et des partitions
 using System.Threading.RateLimiting;
 
-// Enable legacy timestamp behaviour for Npgsql so that DateTime values are treated as
-// "timestamp without time zone" rather than the newer UTC-aware type.
-// This is required to maintain compatibility with the existing PostgreSQL schema
-// where timestamp columns are stored without timezone information.
+// Activation du comportement d'horodatage hérité pour Npgsql afin que les valeurs DateTime soient traitées comme
+// "timestamp without time zone" plutôt que le nouveau type UTC.
+// Nécessaire pour maintenir la compatibilité avec le schéma PostgreSQL existant
+// où les colonnes timestamp sont stockées sans information de fuseau horaire.
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
-// Create the WebApplication builder — this is the starting point for all configuration
+// Création du constructeur WebApplication — point de départ de toute la configuration
 var builder = WebApplication.CreateBuilder(args);
 
-// Read the JWT secret key from configuration (appsettings.json or environment variable)
+// Lecture de la clé secrète JWT depuis la configuration (appsettings.json ou variable d'environnement)
 var secretkey = builder.Configuration["JwtSettings:SecretKey"];
-// Fail fast at startup if the secret key is not configured — a missing key is a security error
+// Échec immédiat au démarrage si la clé secrète n'est pas configurée — une clé manquante est une erreur de sécurité
 if (string.IsNullOrEmpty(secretkey))
 {
     throw new Exception("Pas de clef");
 }
-// Convert the string secret key to a byte array for use in the JWT signing key
+// Conversion de la clé secrète en tableau d'octets pour l'utiliser dans la clé de signature JWT
 var key = Encoding.ASCII.GetBytes(secretkey);
 
-// --- CORS Configuration ---
-// Read the list of allowed frontend origins from configuration (Cors:AllowedOrigins section)
+// --- Configuration CORS ---
+// Lecture de la liste des origines frontend autorisées depuis la configuration (section Cors:AllowedOrigins)
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? Array.Empty<string>();
 
-// Register the CORS middleware with a default policy
+// Enregistrement du middleware CORS avec une politique par défaut
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        // Only allow requests from the configured origins (e.g., the Blazor WASM frontend)
+        // Autoriser uniquement les requêtes provenant des origines configurées (ex. le frontend Blazor WASM)
         policy.WithOrigins(allowedOrigins)
-              // Allow any HTTP method (GET, POST, PUT, DELETE, etc.)
+              // Autoriser toute méthode HTTP (GET, POST, PUT, DELETE, etc.)
               .AllowAnyMethod()
-              // Allow any request header
+              // Autoriser tout en-tête de requête
               .AllowAnyHeader()
-              // Allow cookies to be sent with cross-origin requests (needed for OAuth cookie exchange)
+              // Autoriser l'envoi de cookies avec les requêtes cross-origin (nécessaire pour l'échange de cookie OAuth)
               .AllowCredentials();
     });
 });
 
-// --- Authentication Configuration ---
-// Configure the authentication pipeline with three schemes:
-//   1. JWT Bearer — the primary scheme for API requests (validates the Authorization: Bearer <token> header)
-//   2. Cookie — the sign-in scheme used to persist OAuth identity between the callback and the exchange
-//   3. Google OAuth 2.0 — external provider for social login
-//   4. Microsoft Account OAuth — external provider for social login
+// --- Configuration de l'authentification ---
+// Configuration du pipeline d'authentification avec trois schémas :
+//   1. JWT Bearer — schéma principal pour les requêtes API (valide l'en-tête Authorization: Bearer <token>)
+//   2. Cookie — schéma de connexion utilisé pour persister l'identité OAuth entre le callback et l'échange
+//   3. OAuth 2.0 Google — fournisseur externe pour la connexion sociale
+//   4. OAuth Microsoft Account — fournisseur externe pour la connexion sociale
 builder.Services.AddAuthentication(x =>
 {
-    // Use JWT Bearer as the default scheme for verifying API request tokens
+    // Utiliser JWT Bearer comme schéma par défaut pour vérifier les jetons des requêtes API
     x.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    // Use JWT Bearer for issuing 401 challenge responses
+    // Utiliser JWT Bearer pour émettre les réponses de défi 401
     x.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    // Use Cookie as the sign-in scheme so the OAuth middleware can persist the authenticated
-    // identity in a cookie until the Blazor client calls /api/auth/exchange
+    // Utiliser Cookie comme schéma de connexion pour que le middleware OAuth puisse persister
+    // l'identité authentifiée dans un cookie jusqu'à ce que le client Blazor appelle /api/auth/exchange
     x.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 })
-// Register the Cookie authentication handler (needed by OAuth to store the temporary identity)
+// Enregistrement du gestionnaire d'authentification Cookie (requis par OAuth pour stocker l'identité temporaire)
 .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme)
-// Register JWT Bearer token validation
+// Enregistrement de la validation des jetons JWT Bearer
 .AddJwtBearer(x =>
 {
-    // Allow HTTP in development (set to true in production to require HTTPS)
+    // Autoriser HTTP en développement (mettre à true en production pour exiger HTTPS)
     x.RequireHttpsMetadata = false;
-    // Store the validated token in the HTTP context for downstream use
+    // Stocker le jeton validé dans le contexte HTTP pour une utilisation en aval
     x.SaveToken = true;
     x.TokenValidationParameters = new TokenValidationParameters
     {
-        // Verify the token's signature against our secret key
+        // Vérifier la signature du jeton avec notre clé secrète
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
-        // Skip issuer and audience validation (single-service API, no federation)
+        // Ignorer la validation de l'émetteur et de l'audience (API mono-service, pas de fédération)
         ValidateIssuer   = false,
         ValidateAudience = false,
-        // No clock skew tolerance — tokens expire exactly at the Expires claim time
+        // Aucune tolérance de décalage d'horloge — les jetons expirent exactement à l'heure de la revendication Expires
         ClockSkew = TimeSpan.Zero
     };
 })
-// Register Google OAuth 2.0 provider
+// Enregistrement du fournisseur OAuth 2.0 Google
 .AddGoogle(googleOptions =>
 {
     var googleAuth = builder.Configuration.GetSection("GoogleAuth");
-    // OAuth client credentials registered in the Google Cloud Console
+    // Identifiants client OAuth enregistrés dans la Google Cloud Console
     googleOptions.ClientId     = googleAuth["ClientId"]     ?? "";
     googleOptions.ClientSecret = googleAuth["ClientSecret"] ?? "";
-    // The path Google redirects to after the user has authenticated on their consent screen
+    // Chemin vers lequel Google redirige après que l'utilisateur s'est authentifié sur son écran de consentement
     googleOptions.CallbackPath = "/api/auth/google-signin";
 
-    // Fix "Correlation failed" errors behind nginx where TLS is terminated by the proxy.
-    // The correlation cookie must be SameSite=None so it survives the external redirect,
-    // and Secure=Always because Chrome rejects SameSite=None without HTTPS.
+    // Correction des erreurs "Correlation failed" derrière nginx où TLS est terminé par le proxy.
+    // Le cookie de corrélation doit être SameSite=None pour survivre à la redirection externe,
+    // et Secure=Always car Chrome rejette SameSite=None sans HTTPS.
     googleOptions.CorrelationCookie.SameSite     = SameSiteMode.None;
     googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
     googleOptions.CorrelationCookie.HttpOnly     = true;
 
-    // Fix TaskCanceledException: ExchangeCodeAsync passes Context.RequestAborted to the backchannel
-    // HttpClient. If nginx closes the connection or the browser disconnects, RequestAborted fires
-    // and cancels the token exchange before Google can respond.
-    // DetachedCancellationHandler (defined below) wraps the inner handler and replaces
-    // RequestAborted with CancellationToken.None, leaving only the BackchannelTimeout (30s) active.
+    // Correction de TaskCanceledException : ExchangeCodeAsync passe Context.RequestAborted au backchannel
+    // HttpClient. Si nginx ferme la connexion ou que le navigateur se déconnecte, RequestAborted se déclenche
+    // et annule l'échange de jeton avant que Google puisse répondre.
+    // DetachedCancellationHandler (défini ci-dessous) encapsule le gestionnaire interne et remplace
+    // RequestAborted par CancellationToken.None, ne laissant actif que le BackchannelTimeout (30s).
     googleOptions.BackchannelTimeout = TimeSpan.FromSeconds(30);
     googleOptions.BackchannelHttpHandler = new DetachedCancellationHandler(new SocketsHttpHandler
     {
-        // Maximum time to wait for an initial TCP connection to Google's servers
+        // Durée maximale d'attente d'une connexion TCP initiale vers les serveurs Google
         ConnectTimeout           = TimeSpan.FromSeconds(10),
-        // Recycle pooled connections after 2 minutes to avoid stale connections
+        // Recyclage des connexions en pool après 2 minutes pour éviter les connexions périmées
         PooledConnectionLifetime = TimeSpan.FromMinutes(2),
     });
 })
-// Register Microsoft Account / Outlook OAuth provider
+// Enregistrement du fournisseur OAuth Microsoft Account / Outlook
 .AddMicrosoftAccount(msOptions =>
 {
     var msAuth = builder.Configuration.GetSection("MicrosoftAuth");
-    // OAuth client credentials registered in the Azure portal
+    // Identifiants client OAuth enregistrés dans le portail Azure
     msOptions.ClientId     = msAuth["ClientId"]     ?? "";
     msOptions.ClientSecret = msAuth["ClientSecret"] ?? "";
-    // The path Microsoft redirects to after authentication
+    // Chemin vers lequel Microsoft redirige après l'authentification
     msOptions.CallbackPath = "/api/auth/microsoft-signin";
-    // Same SameSite/Secure fixes as Google (see above)
+    // Mêmes corrections SameSite/Secure que Google (voir ci-dessus)
     msOptions.CorrelationCookie.SameSite     = SameSiteMode.None;
     msOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
     msOptions.CorrelationCookie.HttpOnly     = true;
 });
 
-// --- Database Configuration ---
+// --- Configuration de la base de données ---
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-// Register AgendaContext as a scoped service using the Npgsql provider
+// Enregistrement d'AgendaContext en tant que service scopé avec le fournisseur Npgsql
 builder.Services.AddDbContext<AgendaContext>(options =>
     options.UseNpgsql(connectionString));
 
-// --- Data Protection Configuration ---
-// Data Protection keys are used to encrypt the OAuth correlation cookie and the auth_pending cookie.
-// On Linux deployments, the keys must be persisted to disk so they survive application restarts.
-// Without this, all OAuth flows will fail after a process restart because the correlation cookie
-// cannot be decrypted by a new key set.
+// --- Configuration de la protection des données ---
+// Les clés de protection des données servent à chiffrer le cookie de corrélation OAuth et le cookie auth_pending.
+// Sur les déploiements Linux, les clés doivent être persistées sur disque pour survivre aux redémarrages de l'application.
+// Sans cela, tous les flux OAuth échoueront après un redémarrage car le cookie de corrélation
+// ne peut pas être déchiffré par un nouveau jeu de clés.
 builder.Services.AddDataProtection()
-    // Store keys in a fixed directory on the server filesystem
+    // Stockage des clés dans un répertoire fixe du système de fichiers du serveur
     .PersistKeysToFileSystem(new System.IO.DirectoryInfo("/var/www/serapi/dataprotection-keys"))
-    // Associate keys with this specific application name to prevent key sharing with other apps
+    // Association des clés à ce nom d'application spécifique pour éviter le partage de clés avec d'autres applications
     .SetApplicationName("serapi");
 
-// --- Authorization Policies ---
-// Register the "AdminOnly" policy that requires the ADMIN role (used by the /api/update-scolaire route)
+// --- Politiques d'autorisation ---
+// Enregistrement de la politique "AdminOnly" qui requiert le rôle ADMIN (utilisée par la route /api/update-scolaire)
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy("AdminOnly", policy => policy.RequireRole("ADMIN"));
 
-// --- Rate Limiting Configuration ---
-// Protect the login and register endpoints against brute-force and account-farming attacks.
-// Policy "auth": fixed window of 5 requests per 15 minutes, keyed by client IP address.
+// --- Configuration de la limitation de débit ---
+// Protection des points de terminaison de connexion et d'inscription contre les attaques par force brute et la création de comptes en masse.
+// Politique "auth" : fenêtre fixe de 5 requêtes par 15 minutes, indexée par adresse IP du client.
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy("auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
-            // Use the remote IP address as the partition key; fall back to "unknown" if not available
+            // Utilisation de l'adresse IP distante comme clé de partition ; repli sur "unknown" si indisponible
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                // Maximum 5 requests are permitted within a single window
+                // Maximum 5 requêtes autorisées dans une seule fenêtre
                 PermitLimit            = 5,
-                // Window duration: 15 minutes
+                // Durée de la fenêtre : 15 minutes
                 Window                 = TimeSpan.FromMinutes(15),
-                // Process the oldest requests first if any are queued (queue is 0 here, so no queuing)
+                // Traitement des requêtes les plus anciennes en premier si certaines sont en file d'attente (0 ici, donc pas de mise en file)
                 QueueProcessingOrder   = QueueProcessingOrder.OldestFirst,
-                // No request queuing — excess requests are immediately rejected with 429
+                // Pas de mise en file d'attente — les requêtes excédentaires sont immédiatement rejetées avec 429
                 QueueLimit             = 0
             }));
-    // HTTP 429 Too Many Requests is returned when the rate limit is exceeded
+    // HTTP 429 Too Many Requests est retourné lorsque la limite de débit est dépassée
     options.RejectionStatusCode = 429;
 });
 
-// --- Application Services ---
-// Register ScolaireScraper as a scoped service (created once per HTTP request)
+// --- Services de l'application ---
+// Enregistrement de ScolaireScraper en tant que service scopé (créé une fois par requête HTTP)
 builder.Services.AddScoped<ScolaireScraper>();
-// Register the email service using its interface for testability / dependency inversion
+// Enregistrement du service e-mail via son interface pour la testabilité / l'inversion de dépendance
 builder.Services.AddScoped<seragenda.Services.IEmailService, seragenda.Services.EmailService>();
-// Register all MVC controllers
+// Enregistrement de tous les contrôleurs MVC
 builder.Services.AddControllers();
-// Register the API explorer (used by Swagger to generate the OpenAPI specification)
+// Enregistrement de l'explorateur d'API (utilisé par Swagger pour générer la spécification OpenAPI)
 builder.Services.AddEndpointsApiExplorer();
-// Register Swagger/OpenAPI generation
+// Enregistrement de la génération Swagger/OpenAPI
 builder.Services.AddSwaggerGen();
 
-// --- Forwarded Headers Configuration ---
-// The API runs behind an nginx reverse proxy that terminates TLS.
-// UseForwardedHeaders rewrites the request's Host, Scheme, and RemoteIP using the
-// X-Forwarded-For, X-Forwarded-Host, and X-Forwarded-Proto headers sent by nginx.
-// KnownNetworks and KnownProxies are cleared to accept headers from any proxy
-// (suitable when nginx and the API are on the same trusted network segment).
+// --- Configuration des en-têtes redirigés ---
+// L'API s'exécute derrière un proxy inverse nginx qui termine TLS.
+// UseForwardedHeaders réécrit l'Host, le Scheme et le RemoteIP de la requête en utilisant les
+// en-têtes X-Forwarded-For, X-Forwarded-Host et X-Forwarded-Proto envoyés par nginx.
+// KnownNetworks et KnownProxies sont vidés pour accepter les en-têtes de n'importe quel proxy
+// (adapté quand nginx et l'API sont sur le même segment de réseau de confiance).
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders =
-        ForwardedHeaders.XForwardedFor    |  // Restores the real client IP
-        ForwardedHeaders.XForwardedHost   |  // Restores the original Host header
-        ForwardedHeaders.XForwardedProto;    // Restores "https" as the request scheme
-    // Trust forwarded headers from any network (since nginx is on the same host/subnet)
+        ForwardedHeaders.XForwardedFor    |  // Restaure l'IP réelle du client
+        ForwardedHeaders.XForwardedHost   |  // Restaure l'en-tête Host d'origine
+        ForwardedHeaders.XForwardedProto;    // Restaure "https" comme schéma de la requête
+    // Faire confiance aux en-têtes redirigés de n'importe quel réseau (nginx est sur le même hôte/sous-réseau)
     options.KnownNetworks.Clear();
     options.KnownProxies.Clear();
 });
 
-// Build the application from the configured services
+// Construction de l'application à partir des services configurés
 var app = builder.Build();
 
-// --- Middleware Pipeline (order matters in ASP.NET Core) ---
+// --- Pipeline de middleware (l'ordre compte dans ASP.NET Core) ---
 
-// Expose Swagger UI only in the development environment to avoid leaking API docs in production
+// Exposition de l'interface Swagger uniquement en environnement de développement pour éviter de divulguer les docs API en production
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// ForwardedHeaders must be the FIRST middleware so that all subsequent middleware
-// (CORS, authentication, rate limiter) sees the real client IP and HTTPS scheme
+// ForwardedHeaders doit être le PREMIER middleware pour que tous les suivants
+// (CORS, authentification, limiteur de débit) voient l'IP réelle du client et le schéma HTTPS
 app.UseForwardedHeaders();
 
-// Apply rate limiting before any authentication — rejected requests should not waste auth resources
+// Application de la limitation de débit avant toute authentification — les requêtes rejetées ne doivent pas gaspiller des ressources d'auth
 app.UseRateLimiter();
 
-// HTTPS redirection is disabled because the application runs on HTTP behind nginx,
-// which handles TLS termination. Re-enabling this would cause redirect loops.
+// La redirection HTTPS est désactivée car l'application s'exécute en HTTP derrière nginx,
+// qui gère la terminaison TLS. La réactiver causerait des boucles de redirection.
 // app.UseHttpsRedirection();
 
-// Serve the Blazor WASM static files from wwwroot (index.html, .js, .wasm bundles, etc.)
+// Servir les fichiers statiques Blazor WASM depuis wwwroot (index.html, .js, .wasm, etc.)
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-// Apply the CORS policy — must come before authentication to handle preflight OPTIONS requests
+// Application de la politique CORS — doit précéder l'authentification pour gérer les requêtes OPTIONS de pré-contrôle
 app.UseCors();
 
-// Authenticate the JWT token on each request (populates User.Identity / User.Claims)
+// Authentification du jeton JWT sur chaque requête (alimente User.Identity / User.Claims)
 app.UseAuthentication();
-// Enforce [Authorize] attributes and policy requirements
+// Application des attributs [Authorize] et des exigences de politique
 app.UseAuthorization();
 
-// Map all controller routes (e.g., /api/auth, /api/courses, etc.)
+// Mappage de toutes les routes de contrôleur (ex. /api/auth, /api/courses, etc.)
 app.MapControllers();
 
-// Admin-only minimal-API endpoint that triggers the school calendar scraper on demand.
-// Protected by the "AdminOnly" policy (requires ADMIN role).
+// Point de terminaison minimal-API réservé aux administrateurs qui déclenche le scraper de calendrier scolaire à la demande.
+// Protégé par la politique "AdminOnly" (requiert le rôle ADMIN).
 app.MapGet("/api/update-scolaire", async (ScolaireScraper scraper) =>
 {
-    // Run the scraper and wait for it to complete
+    // Exécution du scraper et attente de sa completion
     await scraper.DemarrerScraping();
     return Results.Ok("Scraping terminé !");
 }).RequireAuthorization("AdminOnly");
 
-// Fallback route: any unmatched path is served the Blazor WASM entry point (index.html).
-// This enables client-side routing in the Blazor app (deep links work on page refresh).
+// Route de repli : tout chemin non correspondant est servi avec le point d'entrée Blazor WASM (index.html).
+// Cela active le routage côté client dans l'application Blazor (les liens profonds fonctionnent au rechargement de page).
 app.MapFallbackToFile("index.html");
 
-// Start the Kestrel server and begin processing requests
+// Démarrage du serveur Kestrel et début du traitement des requêtes
 app.Run();
 
-/// <summary>
-/// Custom <see cref="DelegatingHandler"/> that replaces the CancellationToken passed to
-/// <see cref="HttpMessageHandler.SendAsync"/> with <see cref="CancellationToken.None"/>.
-/// This prevents the OAuth backchannel token exchange from being cancelled when the
-/// browser's HTTP connection is closed (which fires Context.RequestAborted).
-/// Only the BackchannelTimeout (30 seconds) remains as a cancellation source.
-/// </summary>
+// DelegatingHandler personnalisé qui remplace le CancellationToken passé à
+// HttpMessageHandler.SendAsync par CancellationToken.None.
+// Cela empêche l'échange de jeton OAuth du backchannel d'être annulé quand la
+// connexion HTTP du navigateur est fermée (ce qui déclenche Context.RequestAborted).
+// Seul le BackchannelTimeout (30 secondes) reste comme source d'annulation.
 public class DetachedCancellationHandler(HttpMessageHandler inner) : DelegatingHandler(inner)
 {
-    /// <summary>
-    /// Forwards the HTTP request to the inner handler, ignoring the provided cancellation token.
-    /// </summary>
-    /// <param name="request">The outgoing HTTP request message</param>
-    /// <param name="cancellationToken">Ignored — replaced with CancellationToken.None</param>
+    // Transmet la requête HTTP au gestionnaire interne en ignorant le jeton d'annulation fourni.
+    // request : le message de requête HTTP sortant
+    // cancellationToken : ignoré — remplacé par CancellationToken.None
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        // Pass CancellationToken.None so that browser disconnect cannot abort the code exchange
+        // Passage de CancellationToken.None pour que la déconnexion du navigateur ne puisse pas interrompre l'échange de code
         => base.SendAsync(request, CancellationToken.None);
 }

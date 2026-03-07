@@ -1,115 +1,107 @@
-// Import MailKit SMTP client for sending emails over a real SMTP connection
+// Client SMTP MailKit pour l'envoi d'e-mails via une vraie connexion SMTP
 using MailKit.Net.Smtp;
-// Import MailKit security options (StartTLS, SSL, etc.)
+// Options de sécurité MailKit (StartTLS, SSL, etc.)
 using MailKit.Security;
-// Import MimeKit message and body builder types
+// Types MimeKit pour construire le message et le corps du mail
 using MimeKit;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms limité au fichier (style C# 10+)
 namespace seragenda.Services;
 
-/// <summary>
-/// Concrete implementation of <see cref="IEmailService"/> that sends transactional emails
-/// using MailKit over SMTP (configured via appsettings.json under "EmailSettings").
-/// Supports two email types: account confirmation and welcome (post-OAuth signup).
-/// </summary>
+// Implémentation concrète de IEmailService qui envoie des e-mails transactionnels
+// via MailKit sur SMTP (configuré dans appsettings.json sous "EmailSettings").
+// Prend en charge deux types d'e-mails : confirmation de compte et bienvenue (inscription OAuth).
 public class EmailService : IEmailService
 {
-    // Application configuration provider for reading SMTP credentials and URLs
+    // Fournisseur de configuration pour lire les identifiants SMTP et les URLs
     private readonly IConfiguration _config;
-    // Logger for recording SMTP errors without crashing the calling code
+    // Logger pour enregistrer les erreurs SMTP sans faire planter le code appelant
     private readonly ILogger<EmailService> _logger;
 
-    /// <summary>
-    /// Constructor — receives configuration and logger via dependency injection.
-    /// </summary>
-    /// <param name="config">Application configuration (provides EmailSettings section)</param>
-    /// <param name="logger">Logger for recording email delivery errors</param>
+    // Constructeur — reçoit la configuration et le logger par injection de dépendances.
+    // config : configuration de l'application (fournit la section EmailSettings)
+    // logger : logger pour enregistrer les erreurs d'envoi d'e-mail
     public EmailService(IConfiguration config, ILogger<EmailService> logger)
     {
         _config = config;
         _logger = logger;
     }
 
-    /// <summary>
-    /// Sends an HTML email asking the user to click a link to confirm their email address.
-    /// The link is valid for 24 hours. If sending fails, the exception is logged and re-thrown
-    /// so the caller can decide whether to swallow it or propagate it.
-    /// </summary>
-    /// <param name="toEmail">Recipient email address</param>
-    /// <param name="prenom">Recipient's first name, used to personalise the email body</param>
-    /// <param name="confirmationUrl">The full URL the recipient must click to activate their account</param>
+    // Envoie un e-mail HTML demandant à l'utilisateur de cliquer sur un lien pour confirmer son adresse.
+    // Le lien est valable 24 heures. En cas d'échec, l'exception est journalisée et relancée
+    // afin que l'appelant décide de l'ignorer ou de la propager.
+    // toEmail : adresse e-mail du destinataire
+    // prenom : prénom du destinataire, utilisé pour personnaliser le corps du mail
+    // confirmationUrl : URL complète que le destinataire doit cliquer pour activer son compte
     public async Task SendConfirmationEmailAsync(string toEmail, string prenom, string confirmationUrl)
     {
-        // Read SMTP settings from the "EmailSettings" configuration section
+        // Lecture des paramètres SMTP depuis la section "EmailSettings"
         var smtp      = _config.GetSection("EmailSettings");
-        // Fall back to a default "noreply" address if the setting is absent
+        // Adresse expéditeur par défaut si le paramètre est absent
         var fromEmail = smtp["FromEmail"] ?? "noreply@obrigenie.app";
         var fromName  = smtp["FromName"]  ?? "ObriGénie";
-        // Read the frontend base URL for building the logo image URL
+        // Lecture de l'URL de base du frontend pour construire l'URL du logo
         var frontUrl  = _config["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
-        // Construct the absolute URL for the application logo used in the email header
+        // Construction de l'URL absolue du logo utilisé dans l'en-tête de l'e-mail
         var logoUrl   = $"{frontUrl}/icon-192.png";
 
-        // Build the MIME message envelope
+        // Construction de l'enveloppe MIME
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(fromName, fromEmail));
-        // The display name in the To header uses the recipient's first name
+        // Le nom affiché dans l'en-tête To utilise le prénom du destinataire
         message.To.Add(new MailboxAddress(prenom, toEmail));
         message.Subject = "ObriGénie – Confirmez votre inscription";
 
-        // Build both an HTML and a plain-text fallback body
+        // Construction du corps HTML et du texte brut de secours
         var bodyBuilder = new BodyBuilder
         {
-            // Rich HTML email built by the private helper method
+            // Corps HTML riche construit par la méthode privée helper
             HtmlBody = BuildHtml(prenom, confirmationUrl, logoUrl),
-            // Plain-text fallback for email clients that do not render HTML
+            // Texte brut de secours pour les clients e-mail qui n'affichent pas le HTML
             TextBody = $"Bonjour {prenom},\n\nConfirmez votre compte ObriGénie en visitant ce lien :\n{confirmationUrl}\n\nLien valable 24 heures."
         };
         message.Body = bodyBuilder.ToMessageBody();
 
         try
         {
-            // Open a disposable SMTP client connection
+            // Ouverture d'une connexion SMTP jetable
             using var client = new SmtpClient();
-            // Connect to the SMTP server using StartTLS on the configured port (typically 587)
+            // Connexion au serveur SMTP avec StartTLS sur le port configuré (généralement 587)
             await client.ConnectAsync(
                 smtp["Host"] ?? "smtp.gmail.com",
                 int.Parse(smtp["Port"] ?? "587"),
                 SecureSocketOptions.StartTls);
-            // Authenticate with the SMTP username and password from configuration
+            // Authentification avec le nom d'utilisateur et le mot de passe SMTP issus de la configuration
             await client.AuthenticateAsync(smtp["Username"], smtp["Password"]);
-            // Transmit the message
+            // Envoi du message
             await client.SendAsync(message);
-            // Gracefully close the SMTP session
+            // Fermeture propre de la session SMTP
             await client.DisconnectAsync(true);
         }
         catch (Exception ex)
         {
-            // Log the error with the recipient address for diagnostics
+            // Journalisation de l'erreur avec l'adresse du destinataire pour le diagnostic
             _logger.LogError(ex, "Échec d'envoi du mail de confirmation à {Email}", toEmail);
-            // Re-throw so the caller can decide to swallow or propagate
+            // Relance de l'exception pour que l'appelant décide de l'ignorer ou de la propager
             throw;
         }
     }
 
-    /// <summary>
-    /// Sends a welcome email to a user who just signed up via OAuth (Google or Microsoft).
-    /// Unlike the confirmation email, this email does not contain an activation link —
-    /// OAuth accounts are considered confirmed immediately by the provider.
-    /// </summary>
-    /// <param name="toEmail">Recipient email address</param>
-    /// <param name="prenom">Recipient's first name, used to personalise the greeting</param>
+    // Envoie un e-mail de bienvenue à un utilisateur qui vient de s'inscrire via OAuth (Google ou Microsoft).
+    // Contrairement à l'e-mail de confirmation, celui-ci ne contient pas de lien d'activation —
+    // les comptes OAuth sont considérés comme confirmés immédiatement par le fournisseur.
+    // toEmail : adresse e-mail du destinataire
+    // prenom : prénom du destinataire, utilisé pour personnaliser le message de bienvenue
     public async Task SendWelcomeEmailAsync(string toEmail, string prenom)
     {
-        // Read SMTP settings from configuration
+        // Lecture des paramètres SMTP depuis la configuration
         var smtp      = _config.GetSection("EmailSettings");
         var fromEmail = smtp["FromEmail"] ?? "noreply@obrigenie.app";
         var fromName  = smtp["FromName"]  ?? "ObriGénie";
         var frontUrl  = _config["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
         var logoUrl   = $"{frontUrl}/icon-192.png";
 
-        // Build the MIME message
+        // Construction du message MIME
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(fromName, fromEmail));
         message.To.Add(new MailboxAddress(prenom, toEmail));
@@ -117,9 +109,9 @@ public class EmailService : IEmailService
 
         var bodyBuilder = new BodyBuilder
         {
-            // Rich HTML welcome email
+            // Corps HTML de bienvenue
             HtmlBody = BuildWelcomeHtml(prenom, frontUrl, logoUrl),
-            // Plain-text fallback
+            // Texte brut de secours
             TextBody = $"Bonjour {prenom},\n\nBienvenue sur ObriGénie ! Votre compte est activé.\n\nAccédez à l'application : {frontUrl}"
         };
         message.Body = bodyBuilder.ToMessageBody();
@@ -142,15 +134,13 @@ public class EmailService : IEmailService
         }
     }
 
-    /// <summary>
-    /// Builds the HTML body for the email confirmation message.
-    /// Uses an inline-style table-based layout for maximum email client compatibility.
-    /// The confirmation button links to the provided URL; a plain-text fallback link is also shown.
-    /// </summary>
-    /// <param name="prenom">Recipient's first name for personalisation</param>
-    /// <param name="confirmUrl">The full confirmation URL to embed in the button and fallback link</param>
-    /// <param name="logoUrl">Absolute URL to the application logo image (not currently shown in the design)</param>
-    /// <returns>A fully formed HTML string ready to be set as the email's HTML body</returns>
+    // Construit le corps HTML de l'e-mail de confirmation de compte.
+    // Utilise une mise en page tabulaire avec styles inline pour une compatibilité maximale.
+    // Le bouton de confirmation renvoie vers l'URL fournie ; un lien texte de secours est également affiché.
+    // prenom : prénom du destinataire pour la personnalisation
+    // confirmUrl : URL complète de confirmation à intégrer dans le bouton et le lien de secours
+    // logoUrl : URL absolue du logo de l'application (non affichée dans le design actuel)
+    // Retourne une chaîne HTML complète prête à être définie comme corps HTML de l'e-mail
     private static string BuildHtml(string prenom, string confirmUrl, string logoUrl) => $"""
         <!DOCTYPE html>
         <html lang="fr">
@@ -165,14 +155,14 @@ public class EmailService : IEmailService
               <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);">
 
-                  <!-- White header with text logo -->
+                  <!-- En-tête blanc avec logo texte -->
                   <tr>
                     <td style="background:#ffffff;padding:32px 30px 24px;text-align:center;border-bottom:1px solid #eee;">
                       <span style="font-size:26px;font-weight:800;color:#1a1a2e;letter-spacing:-0.5px;">Obrigenie</span>
                     </td>
                   </tr>
 
-                  <!-- White body with greeting, explanation, button, and fallback link -->
+                  <!-- Corps blanc avec salutation, explication, bouton et lien de secours -->
                   <tr>
                     <td style="background:#ffffff;padding:40px 40px 40px;">
                       <h2 style="margin:0 0 12px;color:#1a1a2e;font-size:22px;">
@@ -184,7 +174,7 @@ public class EmailService : IEmailService
                         cliquez sur le bouton ci-dessous.
                       </p>
 
-                      <!-- Call-to-action button -->
+                      <!-- Bouton d'appel à l'action -->
                       <table cellpadding="0" cellspacing="0" style="margin:32px auto;">
                         <tr>
                           <td style="border-radius:10px;background:#1a1a2e;">
@@ -196,7 +186,7 @@ public class EmailService : IEmailService
                         </tr>
                       </table>
 
-                      <!-- Fallback plain-text link for email clients that block button clicks -->
+                      <!-- Lien texte de secours pour les clients e-mail qui bloquent les clics sur bouton -->
                       <p style="margin:0 0 8px;color:#666;font-size:13px;text-align:center;">
                         Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :
                       </p>
@@ -214,7 +204,7 @@ public class EmailService : IEmailService
                     </td>
                   </tr>
 
-                  <!-- Footer with copyright notice -->
+                  <!-- Pied de page avec mention de copyright -->
                   <tr>
                     <td style="background:#f8f9fa;padding:20px 30px;text-align:center;border-top:1px solid #eee;">
                       <p style="margin:0;color:#bbb;font-size:12px;">
@@ -231,15 +221,13 @@ public class EmailService : IEmailService
         </html>
         """;
 
-    /// <summary>
-    /// Builds the HTML body for the welcome email sent to new OAuth users.
-    /// Similar layout to the confirmation email, but contains a direct app link
-    /// instead of a confirmation button.
-    /// </summary>
-    /// <param name="prenom">Recipient's first name for personalisation</param>
-    /// <param name="frontUrl">The base URL of the frontend application</param>
-    /// <param name="logoUrl">Absolute URL to the application logo image</param>
-    /// <returns>A fully formed HTML string ready to be set as the email's HTML body</returns>
+    // Construit le corps HTML de l'e-mail de bienvenue envoyé aux nouveaux utilisateurs OAuth.
+    // Mise en page similaire à l'e-mail de confirmation, mais contient un lien direct vers l'application
+    // au lieu d'un bouton de confirmation.
+    // prenom : prénom du destinataire pour la personnalisation
+    // frontUrl : URL de base du frontend de l'application
+    // logoUrl : URL absolue du logo de l'application
+    // Retourne une chaîne HTML complète prête à être définie comme corps HTML de l'e-mail
     private static string BuildWelcomeHtml(string prenom, string frontUrl, string logoUrl) => $"""
         <!DOCTYPE html>
         <html lang="fr">
@@ -253,13 +241,13 @@ public class EmailService : IEmailService
             <tr>
               <td align="center">
                 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);">
-                  <!-- White header with text logo -->
+                  <!-- En-tête blanc avec logo texte -->
                   <tr>
                     <td style="background:#ffffff;padding:32px 30px 24px;text-align:center;border-bottom:1px solid #eee;">
                       <span style="font-size:26px;font-weight:800;color:#1a1a2e;letter-spacing:-0.5px;">Obrigenie</span>
                     </td>
                   </tr>
-                  <!-- White body with welcome message and app link button -->
+                  <!-- Corps blanc avec message de bienvenue et bouton lien vers l'application -->
                   <tr>
                     <td style="background:#ffffff;padding:40px 40px 40px;">
                       <h2 style="margin:0 0 12px;color:#1a1a2e;font-size:22px;">Bienvenue, {prenom}&nbsp;! 🎉</h2>
@@ -267,7 +255,7 @@ public class EmailService : IEmailService
                         Votre compte <strong>Obrigenie</strong> est activé et prêt à l'emploi.<br />
                         Organisez votre agenda scolaire dès maintenant.
                       </p>
-                      <!-- Call-to-action button pointing directly to the app -->
+                      <!-- Bouton d'appel à l'action pointant directement vers l'application -->
                       <table cellpadding="0" cellspacing="0" style="margin:32px auto;">
                         <tr>
                           <td style="border-radius:10px;background:#1a1a2e;">
@@ -284,7 +272,7 @@ public class EmailService : IEmailService
                       </p>
                     </td>
                   </tr>
-                  <!-- Footer -->
+                  <!-- Pied de page -->
                   <tr>
                     <td style="background:#f8f9fa;padding:20px 30px;text-align:center;border-top:1px solid #eee;">
                       <p style="margin:0;color:#bbb;font-size:12px;">

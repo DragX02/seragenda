@@ -1,30 +1,22 @@
-// File-scoped namespace (C# 10+ style)
+// Espace de noms limité au fichier (style C# 10+)
 namespace seragenda.Services;
 
-/// <summary>
-/// Defines the contract for the transactional email service.
-/// Implementations are responsible for sending emails via SMTP or any other transport.
-/// Registered in the DI container as a scoped service; the concrete class is <see cref="EmailService"/>.
-/// </summary>
+// Définit le contrat du service d'e-mails transactionnels.
+// Les implémentations sont responsables de l'envoi d'e-mails via SMTP ou tout autre transport.
+// Enregistré dans le conteneur DI en tant que service scopé ; la classe concrète est EmailService.
 public interface IEmailService
 {
-    /// <summary>
-    /// Sends an account confirmation email containing a clickable link.
-    /// The link must be opened by the user to activate their newly created local account.
-    /// </summary>
-    /// <param name="toEmail">The recipient's email address</param>
-    /// <param name="prenom">The recipient's first name, used to personalise the email greeting</param>
-    /// <param name="confirmationUrl">
-    /// The full confirmation URL (e.g., https://obrigenie.app/confirm-email?token=...)
-    /// that the user must visit to complete their registration.
-    /// </param>
+    // Envoie un e-mail de confirmation de compte contenant un lien cliquable.
+    // Le lien doit être ouvert par l'utilisateur pour activer son nouveau compte local.
+    // toEmail : adresse e-mail du destinataire
+    // prenom : prénom du destinataire, utilisé pour personnaliser le message de bienvenue
+    // confirmationUrl : URL complète de confirmation (ex. https://obrigenie.app/confirm-email?token=...)
+    //                   que l'utilisateur doit visiter pour terminer son inscription
     Task SendConfirmationEmailAsync(string toEmail, string prenom, string confirmationUrl);
 
-    /// <summary>
-    /// Sends a welcome email to a user who just created an account via OAuth (Google or Microsoft).
-    /// No confirmation link is needed because the OAuth provider already verified the email.
-    /// </summary>
-    /// <param name="toEmail">The recipient's email address</param>
-    /// <param name="prenom">The recipient's first name, used to personalise the email greeting</param>
+    // Envoie un e-mail de bienvenue à un utilisateur qui vient de créer un compte via OAuth (Google ou Microsoft).
+    // Aucun lien de confirmation n'est nécessaire car le fournisseur OAuth a déjà vérifié l'e-mail.
+    // toEmail : adresse e-mail du destinataire
+    // prenom : prénom du destinataire, utilisé pour personnaliser le message de bienvenue
     Task SendWelcomeEmailAsync(string toEmail, string prenom);
 }

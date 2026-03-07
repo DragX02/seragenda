@@ -1,50 +1,44 @@
-// Import ASP.NET Core authorization attributes
+// Importation des attributs d'autorisation ASP.NET Core
 using Microsoft.AspNetCore.Authorization;
-// Import base MVC/API controller types and result helpers
+// Importation des types de contrôleur MVC/API de base et des helpers de résultat
 using Microsoft.AspNetCore.Mvc;
-// Import Entity Framework Core for async database queries
+// Importation d'Entity Framework Core pour les requêtes asynchrones en base de données
 using Microsoft.EntityFrameworkCore;
-// Import project models (CalendrierScolaire)
+// Importation des modèles du projet (CalendrierScolaire)
 using seragenda.Models;
 
-// File-scoped namespace declaration (C# 10+ style)
+// Déclaration d'espace de noms à portée de fichier (style C# 10+)
 namespace seragenda.Controllers;
 
-// All routes in this controller are prefixed with /api/values
+// Toutes les routes de ce contrôleur sont préfixées par /api/values
 [Route("api/[controller]")]
-// Marks this class as an API controller
+// Marque cette classe comme contrôleur API
 [ApiController]
-// All endpoints require a valid JWT token
+// Tous les points de terminaison nécessitent un jeton JWT valide
 [Authorize]
-/// <summary>
-/// Exposes the school calendar (academic year events and holidays) to authenticated users.
-/// The data is sourced from the CalendrierScolaire table, which is populated
-/// by the ScolaireScraper background service.
-/// </summary>
+// Expose le calendrier scolaire (événements de l'année académique et jours fériés) aux utilisateurs authentifiés.
+// Les données proviennent de la table CalendrierScolaire, qui est alimentée
+// par le service en arrière-plan ScolaireScraper.
 public class ValuesController : ControllerBase
 {
-    // Entity Framework database context for querying the school calendar table
+    // Contexte de base de données Entity Framework pour interroger la table du calendrier scolaire
     private readonly AgendaContext _context;
 
-    /// <summary>
-    /// Constructor — receives the database context via dependency injection.
-    /// </summary>
-    /// <param name="context">The EF Core database context</param>
+    // Constructeur — reçoit le contexte de base de données par injection de dépendances.
+    // context : le contexte de base de données EF Core
     public ValuesController(AgendaContext context)
     {
         _context = context;
     }
 
     // GET /api/values
-    // Returns all school calendar entries ordered by start date (ascending)
+    // Retourne toutes les entrées du calendrier scolaire ordonnées par date de début (croissant)
     [HttpGet]
-    /// <summary>
-    /// Retrieves all school calendar entries (holidays, back-to-school dates, public holidays, etc.),
-    /// ordered chronologically by their start date.
-    /// </summary>
+    // Récupère toutes les entrées du calendrier scolaire (vacances, rentrées, jours fériés, etc.),
+    // ordonnées chronologiquement par leur date de début.
     public async Task<IActionResult> Get()
     {
-        // Fetch all calendar entries sorted so the client receives them in date order
+        // Récupération de toutes les entrées du calendrier triées pour que le client les reçoive dans l'ordre chronologique
         var donnees = await _context.CalendrierScolaires
                                     .OrderBy(d => d.DateDebut)
                                     .ToListAsync();

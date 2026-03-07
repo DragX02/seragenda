@@ -1,37 +1,35 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Records which textbooks are used (or recommended) for a specific course-level combination.
-/// A single UtilisationLivre entry links a Livre (book) to a CoursNiveau (subject + level)
-/// and captures the usage status (e.g., "Recommandé", "Obligatoire").
-/// This allows curriculum managers to track which books each teacher uses for each class.
-/// The database default status is "Recommandé" when a new record is inserted.
-/// </summary>
+// Enregistre quels manuels scolaires sont utilisés (ou recommandés) pour une combinaison cours-niveau spécifique.
+// Un enregistrement UtilisationLivre relie un Livre (manuel) à un CoursNiveau (matière + niveau)
+// et capture le statut d'utilisation (ex. : "Recommandé", "Obligatoire").
+// Cela permet aux responsables du programme de suivre quels manuels chaque enseignant utilise pour chaque classe.
+// Le statut par défaut en base de données est "Recommandé" lors de l'insertion d'un nouvel enregistrement.
 public partial class UtilisationLivre
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdUtilisation { get; set; }
 
-    // Foreign key to the Livre (textbook) being referenced
+    // Clé étrangère vers le Livre (manuel scolaire) référencé
     public int IdLivreFk { get; set; }
 
-    // Foreign key to the CoursNiveau (subject + level combination) this book is used for
+    // Clé étrangère vers le CoursNiveau (combinaison matière + niveau) pour lequel ce manuel est utilisé
     public int IdCoursNiveauFk { get; set; }
 
-    // Usage status descriptor; defaults to "Recommandé" in the database
-    // Possible values: "Recommandé", "Obligatoire", "Optionnel", etc.
-    // May be null if no status has been explicitly set
+    // Descripteur du statut d'utilisation ; par défaut "Recommandé" en base de données
+    // Valeurs possibles : "Recommandé", "Obligatoire", "Optionnel", etc.
+    // Peut être null si aucun statut n'a été explicitement défini
     public string? Statut { get; set; }
 
-    // Navigation property: the full CoursNiveau record (subject + level + teacher) for this usage
+    // Propriété de navigation : l'enregistrement CoursNiveau complet (matière + niveau + enseignant) pour cette utilisation
     public virtual CoursNiveau IdCoursNiveauFkNavigation { get; set; } = null!;
 
-    // Navigation property: the full Livre (book) record being referenced
+    // Propriété de navigation : l'enregistrement Livre (manuel scolaire) complet référencé
     public virtual Livre IdLivreFkNavigation { get; set; } = null!;
 }

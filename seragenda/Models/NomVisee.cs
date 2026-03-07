@@ -1,29 +1,27 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents the name or label of a learning objective type (visée).
-/// NomVisee acts as a label dictionary for the Visee table:
-/// instead of repeating the same long label string in every Visee row,
-/// the label is stored once here and referenced by foreign key.
-/// Example labels: "Visée disciplinaire", "Visée transversale".
-/// Maximum label length: 150 characters (database constraint).
-/// </summary>
+// Représente le nom ou l'intitulé d'un type d'objectif d'apprentissage (visée).
+// NomVisee joue le rôle de dictionnaire d'étiquettes pour la table Visee :
+// au lieu de répéter la même longue chaîne d'étiquette dans chaque ligne Visee,
+// l'étiquette est stockée une seule fois ici et référencée par clé étrangère.
+// Exemples d'étiquettes : "Visée disciplinaire", "Visée transversale".
+// Longueur maximale de l'étiquette : 150 caractères (contrainte de base de données).
 public partial class NomVisee
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdNomVisee { get; set; }
 
-    // The label text for this learning objective type
-    // Named with a "1" suffix (NomVisee1) to avoid naming collision with the class itself
-    // Maximum length: 150 characters
+    // Texte de l'étiquette pour ce type d'objectif d'apprentissage
+    // Nommé avec le suffixe "1" (NomVisee1) pour éviter une collision de nommage avec la classe elle-même
+    // Longueur maximale : 150 caractères
     public string NomVisee1 { get; set; } = null!;
 
-    // Navigation property: all learning objective records that use this label
+    // Propriété de navigation : tous les enregistrements d'objectif d'apprentissage qui utilisent cette étiquette
     public virtual ICollection<Visee> Visees { get; set; } = new List<Visee>();
 }

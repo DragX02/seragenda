@@ -1,44 +1,42 @@
-// Import base .NET types (DateOnly, etc.)
+// Importation des types .NET de base (DateOnly, etc.)
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents a school calendar event, such as a holiday period, a public holiday,
-/// or a back-to-school day.
-/// Records are populated by the <see cref="Services.ScolaireScraper"/> from the
-/// official Belgian education website (enseignement.be).
-/// The AnneeScolaire field is a database-computed column derived from the DateDebut:
-///   - If month >= 8 (August) → "YYYY-(YYYY+1)" (e.g., "2024-2025")
-///   - Otherwise              → "(YYYY-1)-YYYY"  (e.g., "2024-2025" for January 2025)
-/// </summary>
+// Représente un événement du calendrier scolaire, tel qu'une période de vacances, un jour férié
+// ou une journée de rentrée scolaire.
+// Les enregistrements sont alimentés par le service ScolaireScraper à partir du
+// site officiel de l'enseignement belge (enseignement.be).
+// Le champ AnneeScolaire est une colonne calculée en base de données, dérivée de DateDebut :
+//   - Si le mois >= 8 (août) → "AAAA-(AAAA+1)" (ex. : "2024-2025")
+//   - Sinon                  → "(AAAA-1)-AAAA"  (ex. : "2024-2025" pour janvier 2025)
 public partial class CalendrierScolaire
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdCalendrier { get; set; }
 
-    // Name of the event (e.g., "Vacances de Noël", "Jour de l'An", "Rentrée scolaire")
-    // Maximum length: 100 characters
+    // Nom de l'événement (ex. : "Vacances de Noël", "Jour de l'An", "Rentrée scolaire")
+    // Longueur maximale : 100 caractères
     public string NomEvenement { get; set; } = null!;
 
-    // First day of the event period (inclusive)
+    // Premier jour de la période de l'événement (inclus)
     public DateOnly DateDebut { get; set; }
 
-    // Last day of the event period (inclusive); same as DateDebut for single-day events
+    // Dernier jour de la période de l'événement (inclus) ; identique à DateDebut pour les événements d'un seul jour
     public DateOnly DateFin { get; set; }
 
-    // Category of the event: "Vacances" for holiday periods, "Jour Férié/Rentrée" for single days
-    // Maximum length: 50 characters
+    // Catégorie de l'événement : "Vacances" pour les périodes de congé, "Jour Férié/Rentrée" pour les jours uniques
+    // Longueur maximale : 50 caractères
     public string TypeEvenement { get; set; } = null!;
 
-    // Database-computed column representing the school year this event belongs to
-    // (e.g., "2024-2025"); computed server-side by a SQL CASE expression — do not set manually
+    // Colonne calculée en base de données représentant l'année scolaire à laquelle appartient cet événement
+    // (ex. : "2024-2025") ; calculée côté serveur par une expression SQL CASE — ne pas définir manuellement
     public string? AnneeScolaire { get; set; }
 
-    // Navigation property: all lesson planning sessions that reference this calendar event
-    // (used when a session is linked to a specific calendar day/holiday)
+    // Propriété de navigation : toutes les séances de planification qui référencent cet événement du calendrier
+    // (utilisée lorsqu'une séance est liée à un jour ou jour férié spécifique du calendrier)
     public virtual ICollection<Planification> Planifications { get; set; } = new List<Planification>();
 }

@@ -1,42 +1,38 @@
-// Import ASP.NET Core authorization attributes
+// Importation des attributs d'autorisation ASP.NET Core
 using Microsoft.AspNetCore.Authorization;
-// Import base MVC/API controller types and result helpers
+// Importation des types de contrôleur MVC/API de base et des helpers de résultat
 using Microsoft.AspNetCore.Mvc;
 
 namespace seragenda.Controllers
 {
-    // Marks this class as an API controller
+    // Marque cette classe comme contrôleur API
     [ApiController]
-    // Routes in this controller are prefixed with /api/health
+    // Les routes de ce contrôleur sont préfixées par /api/health
     [Route("api/[controller]")]
-    // Health check must be publicly accessible — no JWT required (used by uptime monitors, load balancers, etc.)
+    // Le contrôle de santé doit être accessible publiquement — aucun JWT requis (utilisé par les moniteurs de disponibilité, les équilibreurs de charge, etc.)
     [AllowAnonymous]
-    /// <summary>
-    /// Provides a lightweight health-check endpoint for infrastructure monitoring.
-    /// Uptime monitors and load balancers can poll GET /api/health to verify
-    /// that the API process is running and reachable.
-    /// </summary>
+    // Fournit un point de terminaison de contrôle de santé léger pour la surveillance des infrastructures.
+    // Les moniteurs de disponibilité et les équilibreurs de charge peuvent interroger GET /api/health pour vérifier
+    // que le processus API est en cours d'exécution et accessible.
     public class HealthController : ControllerBase
     {
         // GET /api/health
-        // Returns a simple JSON payload confirming the API is online
+        // Retourne un payload JSON simple confirmant que l'API est en ligne
         [HttpGet]
-        /// <summary>
-        /// Returns a JSON object with the current server status, UTC timestamp,
-        /// server name, and API version number.
-        /// A 200 OK response indicates the service is healthy.
-        /// </summary>
+        // Retourne un objet JSON avec le statut courant du serveur, l'horodatage UTC,
+        // le nom du serveur et le numéro de version de l'API.
+        // Une réponse 200 OK indique que le service est en bonne santé.
         public IActionResult Get()
         {
             return Ok(new
             {
-                // Human-readable status flag — always "online" when this code runs
+                // Indicateur de statut lisible — toujours "online" quand ce code s'exécute
                 status    = "online",
-                // Current UTC time so the caller can verify the server clock is reasonable
+                // Heure UTC actuelle pour que l'appelant puisse vérifier que l'horloge du serveur est raisonnable
                 timestamp = DateTime.UtcNow,
-                // Identifies which application is responding (useful in multi-service deployments)
+                // Identifie quelle application répond (utile dans les déploiements multi-services)
                 server    = "AgendaProf API",
-                // Semantic version of this API deployment
+                // Version sémantique de ce déploiement de l'API
                 version   = "1.0.0"
             });
         }

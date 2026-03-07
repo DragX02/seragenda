@@ -1,55 +1,53 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents a specific learning objective (visée) within the curriculum.
-/// A Visee is classified by:
-///   - Its name/type (NomVisee) — the category of objective (e.g., "disciplinaire", "transversale")
-///   - Its domain (Domaine) — the broad curriculum area it falls under
-///   - Its optional sub-domain (Sousdomaine) — a narrower category within the domain
-///   - Its competency (Competence) — the overarching skill it develops
-/// Learning objectives can be targeted in planned lesson sessions (SeanceObjectif)
-/// and are linked to mastery targets (ViseesMaitriser) via a many-to-many join table.
-/// </summary>
+// Représente un objectif d'apprentissage spécifique (visée) dans le programme scolaire.
+// Une Visee est classifiée par :
+//   - Son nom/type (NomVisee) — la catégorie d'objectif (ex. : "disciplinaire", "transversale")
+//   - Son domaine (Domaine) — le large domaine curriculaire dans lequel elle s'inscrit
+//   - Son sous-domaine optionnel (Sousdomaine) — une catégorie plus étroite au sein du domaine
+//   - Sa compétence (Competence) — la compétence globale qu'elle développe
+// Les objectifs d'apprentissage peuvent être ciblés dans des séances de cours planifiées (SeanceObjectif)
+// et sont liés aux visées à maîtriser (ViseesMaitriser) via une table de jointure plusieurs-à-plusieurs.
 public partial class Visee
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdVisee { get; set; }
 
-    // Foreign key to the NomVisee record (the type/label of this learning objective)
+    // Clé étrangère vers l'enregistrement NomVisee (le type/l'étiquette de cet objectif d'apprentissage)
     public int IdNomViseeFk { get; set; }
 
-    // Foreign key to the Domaine (curriculum domain) this objective belongs to
+    // Clé étrangère vers le Domaine (domaine curriculaire) auquel appartient cet objectif
     public int IdDomaineFk { get; set; }
 
-    // Foreign key to the Sousdomaine (curriculum sub-domain) for finer classification
-    // Optional — may be null if the objective is classified at the domain level only
+    // Clé étrangère vers le Sousdomaine (sous-domaine curriculaire) pour une classification plus fine
+    // Optionnel — peut être null si l'objectif est classifié uniquement au niveau du domaine
     public int? IdSousDomaineFk { get; set; }
 
-    // Foreign key to the Competence (broad skill category) this objective falls under
+    // Clé étrangère vers la Competence (catégorie de savoir-faire générale) dans laquelle s'inscrit cet objectif
     public int IdCompFk { get; set; }
 
-    // Navigation property: the full Competence record
+    // Propriété de navigation : l'enregistrement Competence complet
     public virtual Competence IdCompFkNavigation { get; set; } = null!;
 
-    // Navigation property: the full Domaine record
+    // Propriété de navigation : l'enregistrement Domaine complet
     public virtual Domaine IdDomaineFkNavigation { get; set; } = null!;
 
-    // Navigation property: the full NomVisee record (objective type label)
+    // Propriété de navigation : l'enregistrement NomVisee complet (étiquette de type d'objectif)
     public virtual NomVisee IdNomViseeFkNavigation { get; set; } = null!;
 
-    // Navigation property: the optional Sousdomaine record (nullable — may not be set)
+    // Propriété de navigation : l'enregistrement Sousdomaine optionnel (nullable — peut ne pas être défini)
     public virtual Sousdomaine? IdSousDomaineFkNavigation { get; set; }
 
-    // Navigation property: all lesson session records that plan to address this objective
+    // Propriété de navigation : tous les enregistrements de séance qui prévoient de traiter cet objectif
     public virtual ICollection<SeanceObjectif> SeanceObjectifs { get; set; } = new List<SeanceObjectif>();
 
-    // Navigation property: all mastery targets (ViseesMaitriser) that this objective contributes to.
-    // This many-to-many relationship is realised through the "lien_visee_maitrise" join table in the database.
+    // Propriété de navigation : toutes les visées à maîtriser (ViseesMaitriser) auxquelles cet objectif contribue.
+    // Cette relation plusieurs-à-plusieurs est réalisée via la table de jointure "lien_visee_maitrise" en base de données.
     public virtual ICollection<ViseesMaitriser> IdViseesMaitriserFks { get; set; } = new List<ViseesMaitriser>();
 }

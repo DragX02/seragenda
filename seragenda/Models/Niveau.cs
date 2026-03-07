@@ -1,29 +1,27 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents an educational level (year group or grade) in the curriculum structure.
-/// A Niveau groups students of the same academic year (e.g., "1A", "3B", "6TH").
-/// It is linked to subjects via the CoursNiveau joining table.
-/// Each level has a unique short code and a display name.
-/// </summary>
+// Représente un niveau d'enseignement (groupe d'année ou classe) dans la structure curriculaire.
+// Un Niveau regroupe les élèves d'une même année académique (ex. : "1A", "3B", "6TH").
+// Il est lié aux matières via la table de jointure CoursNiveau.
+// Chaque niveau possède un code court unique et un nom d'affichage.
 public partial class Niveau
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdNiveau { get; set; }
 
-    // Short unique code for the level, used in API parameters and internal lookups (e.g., "1A", "3B")
-    // Has a unique database index to enforce code uniqueness
+    // Code court unique du niveau, utilisé dans les paramètres d'API et les recherches internes (ex. : "1A", "3B")
+    // Possède un index unique en base de données pour garantir l'unicité du code
     public string CodeNiveau { get; set; } = null!;
 
-    // Full human-readable name of the educational level (e.g., "Première A", "Troisième B")
+    // Nom complet lisible du niveau d'enseignement (ex. : "Première A", "Troisième B")
     public string NomNiveau { get; set; } = null!;
 
-    // Navigation property: all course-level combinations that reference this education level
+    // Propriété de navigation : toutes les combinaisons cours-niveau qui référencent ce niveau d'enseignement
     public virtual ICollection<CoursNiveau> CoursNiveaus { get; set; } = new List<CoursNiveau>();
 }

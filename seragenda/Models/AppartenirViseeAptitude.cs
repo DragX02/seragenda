@@ -1,39 +1,37 @@
-// Import base .NET types
+// Importation des types .NET de base
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Join table that links a mastery target (ViseesMaitriser) to both
-/// a specific competency (Competence) and an optional aptitude (Aptitude).
-/// This three-way association models the relationship:
-/// "This mastery target involves a particular competency and, optionally, a specific aptitude."
-/// Used in the curriculum planning layer to map educational goals to skills.
-/// </summary>
+// Table de jointure reliant une visée à maîtriser (ViseesMaitriser) à la fois
+// à une compétence spécifique (Competence) et à une aptitude optionnelle (Aptitude).
+// Cette association trilatérale modélise la relation :
+// "Cette visée à maîtriser implique une compétence particulière et, optionnellement, une aptitude spécifique."
+// Utilisée dans la couche de planification pédagogique pour associer les objectifs éducatifs aux savoir-faire.
 public partial class AppartenirViseeAptitude
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdAppartenirViseeAptitude { get; set; }
 
-    // Foreign key to the Aptitude table (optional — a mastery target may have no aptitude)
+    // Clé étrangère vers la table Aptitude (optionnelle — une visée à maîtriser peut ne pas avoir d'aptitude)
     public int? IdAptitudeFk { get; set; }
 
-    // Foreign key to the ViseesMaitriser table; links this record to a mastery target
+    // Clé étrangère vers la table ViseesMaitriser ; relie cet enregistrement à une visée à maîtriser
     public int IdViseesMaitriserFk { get; set; }
 
-    // Foreign key to the Competence table; links this record to a required competency
+    // Clé étrangère vers la table Competence ; relie cet enregistrement à une compétence requise
     public int IdCompetenceFk { get; set; }
 
-    // Navigation property: the optional aptitude associated with this mastery-target link
-    // Nullable because IdAptitudeFk is optional
+    // Propriété de navigation : l'aptitude optionnelle associée à ce lien de visée à maîtriser
+    // Nullable car IdAptitudeFk est optionnel
     public virtual Aptitude? IdAptitudeFkNavigation { get; set; }
 
-    // Navigation property: the competency associated with this mastery-target link
+    // Propriété de navigation : la compétence associée à ce lien de visée à maîtriser
     public virtual Competence IdCompetenceFkNavigation { get; set; } = null!;
 
-    // Navigation property: the mastery target (visée à maîtriser) that this record describes
+    // Propriété de navigation : la visée à maîtriser que cet enregistrement décrit
     public virtual ViseesMaitriser IdViseesMaitriserFkNavigation { get; set; } = null!;
 }

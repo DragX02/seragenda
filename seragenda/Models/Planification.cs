@@ -1,59 +1,57 @@
-// Import base .NET types (DateOnly, TimeOnly, etc.)
+// Importation des types .NET de base (DateOnly, TimeOnly, etc.)
 using System;
-// Import collection interfaces for navigation properties
+// Importation des interfaces de collection pour les propriétés de navigation
 using System.Collections.Generic;
 
-// File-scoped namespace (C# 10+ style)
+// Espace de noms délimité au fichier (style C# 10+)
 namespace seragenda.Models;
 
-/// <summary>
-/// Represents a planned lesson session in the teacher's agenda.
-/// A Planification links a specific date and time slot to a course-level combination (CoursNiveau)
-/// and optionally to a school calendar event (CalendrierScolaire) such as a holiday.
-/// Each session can have multiple associated learning objectives (SeanceObjectif)
-/// and multiple resource references (SeanceRessource — chapters used during the session).
-/// The session status defaults to "Prévue" (planned) and can progress to other states
-/// (e.g., "Réalisée", "Annulée").
-/// </summary>
+// Représente une séance de cours planifiée dans l'agenda de l'enseignant.
+// Une Planification relie une date et un créneau horaire spécifiques à une combinaison cours-niveau (CoursNiveau)
+// et optionnellement à un événement du calendrier scolaire (CalendrierScolaire) tel qu'un jour férié.
+// Chaque séance peut avoir plusieurs objectifs d'apprentissage associés (SeanceObjectif)
+// et plusieurs références de ressources (SeanceRessource — chapitres utilisés pendant la séance).
+// Le statut de la séance est par défaut "Prévue" (planifiée) et peut évoluer vers d'autres états
+// (ex. : "Réalisée", "Annulée").
 public partial class Planification
 {
-    // Primary key — auto-incremented integer assigned by the database
+    // Clé primaire — entier auto-incrémenté assigné par la base de données
     public int IdPlanning { get; set; }
 
-    // The calendar date on which this lesson session is scheduled
+    // La date calendaire à laquelle cette séance de cours est planifiée
     public DateOnly DateSeance { get; set; }
 
-    // Optional start time of the lesson session (e.g., 08:30)
-    // Null when the time is not yet determined
+    // Heure de début optionnelle de la séance de cours (ex. : 08:30)
+    // Null si l'heure n'est pas encore déterminée
     public TimeOnly? HeureDebut { get; set; }
 
-    // Optional end time of the lesson session (e.g., 10:00)
-    // Null when the time is not yet determined
+    // Heure de fin optionnelle de la séance de cours (ex. : 10:00)
+    // Null si l'heure n'est pas encore déterminée
     public TimeOnly? HeureFin { get; set; }
 
-    // Foreign key to the CoursNiveau record; identifies which subject-level this session belongs to
+    // Clé étrangère vers l'enregistrement CoursNiveau ; identifie la matière-niveau à laquelle cette séance appartient
     public int IdCoursNiveauFk { get; set; }
 
-    // Optional foreign key to a CalendrierScolaire record (e.g., if the session falls on a noted calendar day)
-    // Null when the session is not associated with a specific school calendar event
+    // Clé étrangère optionnelle vers un enregistrement CalendrierScolaire (ex. : si la séance tombe un jour noté au calendrier)
+    // Null si la séance n'est pas associée à un événement spécifique du calendrier scolaire
     public int? IdCalendrierFk { get; set; }
 
-    // Optional private note written by the teacher about this session (free text)
+    // Note privée optionnelle rédigée par l'enseignant à propos de cette séance (texte libre)
     public string? NoteProf { get; set; }
 
-    // Current status of the session; defaults to "Prévue" in the database
-    // Possible values include: "Prévue", "Réalisée", "Annulée"
+    // Statut actuel de la séance ; par défaut "Prévue" en base de données
+    // Valeurs possibles : "Prévue", "Réalisée", "Annulée"
     public string? Statut { get; set; }
 
-    // Navigation property: the optional school calendar event associated with this session
+    // Propriété de navigation : l'événement optionnel du calendrier scolaire associé à cette séance
     public virtual CalendrierScolaire? IdCalendrierFkNavigation { get; set; }
 
-    // Navigation property: the full CoursNiveau record (subject + level + teacher) for this session
+    // Propriété de navigation : l'enregistrement CoursNiveau complet (matière + niveau + enseignant) pour cette séance
     public virtual CoursNiveau IdCoursNiveauFkNavigation { get; set; } = null!;
 
-    // Navigation property: all learning objectives planned for this session
+    // Propriété de navigation : tous les objectifs d'apprentissage planifiés pour cette séance
     public virtual ICollection<SeanceObjectif> SeanceObjectifs { get; set; } = new List<SeanceObjectif>();
 
-    // Navigation property: all book chapter resources planned for use during this session
+    // Propriété de navigation : toutes les ressources de chapitres de manuels prévues pour cette séance
     public virtual ICollection<SeanceRessource> SeanceRessources { get; set; } = new List<SeanceRessource>();
 }
