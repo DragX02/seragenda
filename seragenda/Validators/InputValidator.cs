@@ -94,7 +94,7 @@ namespace seragenda.Validators
                 return false;
 
             // Autoriser les lettres ASCII majuscules et minuscules, les caractères latins accentués (À-ÿ),
-            // les espaces, les traits d'union et les apostrophes — courants dans les noms français et européens
+            // les espaces, les traits d'union et les apostrophes — courants dans les noms français et européens..
             var nameRegex = new Regex(@"^[a-zA-ZÀ-ÿ\s\-']+$");
             return nameRegex.IsMatch(name);
         }
