@@ -141,8 +141,8 @@ namespace seragenda.Controllers
         public async Task<IActionResult> GetNiveaux()
         {
             var list = await _context.Niveaus
-                .OrderBy(n => n.Ordre)
-                .Select(n => new { n.IdNiveau, n.CodeNiveau, n.NomNiveau, n.Ordre })
+                .OrderBy(n => n.CodeNiveau)
+                .Select(n => new { n.IdNiveau, n.CodeNiveau, n.NomNiveau })
                 .ToListAsync();
             return Ok(list);
         }
@@ -158,8 +158,7 @@ namespace seragenda.Controllers
             var niv = new Niveau
             {
                 CodeNiveau = dto.CodeNiveau.Trim().ToUpper(),
-                NomNiveau  = dto.NomNiveau.Trim(),
-                Ordre      = dto.Ordre
+                NomNiveau  = dto.NomNiveau.Trim()
             };
             _context.Niveaus.Add(niv);
             try { await _context.SaveChangesAsync(); }
@@ -211,7 +210,7 @@ namespace seragenda.Controllers
                 .Include(cn => cn.IdNiveauFkNavigation)
                 .Include(cn => cn.IdProfFkNavigation)
                 .OrderBy(cn => cn.IdCoursFkNavigation.NomCours)
-                .ThenBy(cn => cn.IdNiveauFkNavigation.Ordre)
+                .ThenBy(cn => cn.IdNiveauFkNavigation.CodeNiveau)
                 .Select(cn => new
                 {
                     cn.IdCoursNiveau,
