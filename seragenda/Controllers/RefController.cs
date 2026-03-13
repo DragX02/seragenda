@@ -98,26 +98,80 @@ namespace seragenda.Controllers
         // Retourne les domaines pour une combinaison cours + niveau donnée
         [HttpGet("domaines/{codeCours}/{codeNiveau}")]
         // Récupère tous les domaines pédagogiques pour une combinaison cours et niveau spécifique.
-        // Les domaines sont des zones spécifiques du programme au sein d'un cours pour un niveau donné
-        // (ex. : "Algèbre" dans "Mathématiques" en "3ème année").
         // Paramètre codeCours : le code unique du cours
         // Paramètre codeNiveau : le code unique du niveau scolaire
         public async Task<IActionResult> GetDomaines(string codeCours, string codeNiveau)
         {
             var domaines = await _context.CoursNiveaus
-                // Trouver les enregistrements de liaison correspondant à la fois au cours et au niveau
                 .Where(cn =>
                     cn.IdCoursFkNavigation.CodeCours   == codeCours &&
                     cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau)
-                // Aplatir la collection d'enfants Domaine de chaque enregistrement CoursNiveau correspondant
                 .SelectMany(cn => cn.Domaines)
-                // Trier alphabétiquement pour la liste déroulante
                 .OrderBy(d => d.Nom)
-                // Projeter uniquement l'identifiant et le nom d'affichage
                 .Select(d => new { d.IdDom, d.Nom })
                 .ToListAsync();
 
             return Ok(domaines);
+        }
+
+        // GET /api/ref/sous-domaines/{idDomaine}
+        // Retourne les sous-domaines rattachés à un domaine donné
+        [HttpGet("sous-domaines/{idDomaine:int}")]
+        public async Task<IActionResult> GetSousDomaines(int idDomaine)
+        {
+            var list = await _context.Sousdomaines
+                .Where(s => s.IdDomFk == idDomaine)
+                .OrderBy(s => s.NomComp)
+                .Select(s => new { s.IdSousDomaine, s.NomComp })
+                .ToListAsync();
+
+            return Ok(list);
+        }
+
+        // GET /api/ref/visees/{idDomaine}?sousDomaine={idSousDomaine}
+        // Retourne les visées d'un domaine, filtrées optionnellement par sous-domaine
+        [HttpGet("visees/{idDomaine:int}")]
+        public async Task<IActionResult> GetVisees(int idDomaine, [FromQuery] int? sousDomaine)
+        {
+            var query = _context.Visees
+                .Include(v => v.IdNomViseeFkNavigation)
+                .Include(v => v.IdCompFkNavigation)
+                .Where(v => v.IdDomaineFk == idDomaine);
+
+            if (sousDomaine.HasValue && sousDomaine.Value > 0)
+                query = query.Where(v => v.IdSousDomaineFk == sousDomaine.Value);
+
+            var list = await query
+                .OrderBy(v => v.IdNomViseeFkNavigation.NomVisee1)
+                .ThenBy(v => v.IdCompFkNavigation.NomCompetence)
+                .Select(v => new
+                {
+                    v.IdVisee,
+                    // Libellé court : type + compétence pour identifier la visée dans la liste
+                    Label = v.IdNomViseeFkNavigation.NomVisee1 + " — " + v.IdCompFkNavigation.NomCompetence
+                })
+                .ToListAsync();
+
+            return Ok(list);
+        }
+
+        // GET /api/ref/visees-maitriser/{idVisee}
+        // Retourne les visées à maîtriser liées à une visée donnée (via la table de jointure many-to-many)
+        [HttpGet("visees-maitriser/{idVisee:int}")]
+        public async Task<IActionResult> GetViseesMaitriser(int idVisee)
+        {
+            var visee = await _context.Visees
+                .Include(v => v.IdViseesMaitriserFks)
+                .FirstOrDefaultAsync(v => v.IdVisee == idVisee);
+
+            if (visee == null) return NotFound();
+
+            var list = visee.IdViseesMaitriserFks
+                .OrderBy(vm => vm.NomViseesMaitriser)
+                .Select(vm => new { vm.IdViseesMaitriser, vm.NomViseesMaitriser })
+                .ToList();
+
+            return Ok(list);
         }
     }
 }
