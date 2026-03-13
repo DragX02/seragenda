@@ -173,5 +173,29 @@ namespace seragenda.Controllers
 
             return Ok(list);
         }
+
+        // GET /api/ref/appartenir/{idVm}
+        // Retourne les entrées appartenir_visee_aptitude d'une visée à maîtriser :
+        // chaque entrée donne l'aptitude (ex. "Parler", "Écouter") et la compétence liées
+        [HttpGet("appartenir/{idVm:int}")]
+        public async Task<IActionResult> GetAppartenir(int idVm)
+        {
+            var list = await _context.AppartenirViseeAptitudes
+                .Include(a => a.IdAptitudeFkNavigation)
+                .Include(a => a.IdCompetenceFkNavigation)
+                .Where(a => a.IdViseesMaitriserFk == idVm)
+                .OrderBy(a => a.IdAptitudeFkNavigation != null ? a.IdAptitudeFkNavigation.NomAptitude : "")
+                .Select(a => new
+                {
+                    a.IdAppartenirViseeAptitude,
+                    IdAptitude    = a.IdAptitudeFk,
+                    NomAptitude   = a.IdAptitudeFkNavigation != null ? a.IdAptitudeFkNavigation.NomAptitude : null,
+                    a.IdCompetenceFk,
+                    NomCompetence = a.IdCompetenceFkNavigation.NomCompetence
+                })
+                .ToListAsync();
+
+            return Ok(list);
+        }
     }
 }
