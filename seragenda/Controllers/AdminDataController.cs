@@ -507,6 +507,199 @@ namespace seragenda.Controllers
             catch { return BadRequest(new { message = "Impossible : des visées sont liées à ce sous-domaine" }); }
             return Ok();
         }
+
+        // ──────────────────────────────────────────────────────────────────
+        // VISÉES (objectifs d'apprentissage)
+        // ──────────────────────────────────────────────────────────────────
+
+        // GET /api/admin-data/visees
+        // Retourne toutes les visées avec leur contexte complet (chaîne cours → domaine → compétence)
+        [HttpGet("visees")]
+        public async Task<IActionResult> GetVisees()
+        {
+            var list = await _context.Visees
+                .Include(v => v.IdNomViseeFkNavigation)
+                .Include(v => v.IdDomaineFkNavigation)
+                    .ThenInclude(d => d.IdCoursNiveauFkNavigation)
+                        .ThenInclude(cn => cn.IdCoursFkNavigation)
+                .Include(v => v.IdDomaineFkNavigation)
+                    .ThenInclude(d => d.IdCoursNiveauFkNavigation)
+                        .ThenInclude(cn => cn.IdNiveauFkNavigation)
+                .Include(v => v.IdSousDomaineFkNavigation)
+                .Include(v => v.IdCompFkNavigation)
+                .OrderBy(v => v.IdDomaineFkNavigation.IdCoursNiveauFkNavigation.IdCoursFkNavigation.NomCours)
+                .ThenBy(v => v.IdDomaineFkNavigation.Nom)
+                .Select(v => new
+                {
+                    v.IdVisee,
+                    v.IdNomViseeFk,    NomViseeType   = v.IdNomViseeFkNavigation.NomVisee1,
+                    v.IdDomaineFk,     NomDomaine     = v.IdDomaineFkNavigation.Nom,
+                    v.IdSousDomaineFk, NomSousDomaine = v.IdSousDomaineFkNavigation != null ? v.IdSousDomaineFkNavigation.NomComp : null,
+                    v.IdCompFk,        NomCompetence  = v.IdCompFkNavigation.NomCompetence,
+                    NomCours  = v.IdDomaineFkNavigation.IdCoursNiveauFkNavigation.IdCoursFkNavigation.NomCours,
+                    NomNiveau = v.IdDomaineFkNavigation.IdCoursNiveauFkNavigation.IdNiveauFkNavigation.NomNiveau
+                })
+                .ToListAsync();
+            return Ok(list);
+        }
+
+        // POST /api/admin-data/visees
+        // Crée une nouvelle visée (objectif d'apprentissage)
+        [HttpPost("visees")]
+        public async Task<IActionResult> CreateVisee([FromBody] CreateViseeAdminDto dto)
+        {
+            var visee = new Visee
+            {
+                IdNomViseeFk    = dto.IdNomViseeFk,
+                IdDomaineFk     = dto.IdDomaineFk,
+                IdSousDomaineFk = dto.IdSousDomaineFk,
+                IdCompFk        = dto.IdCompFk
+            };
+            _context.Visees.Add(visee);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Erreur lors de la création de la visée" }); }
+            return Ok(new { visee.IdVisee });
+        }
+
+        // DELETE /api/admin-data/visees/{id}
+        // Supprime une visée
+        [HttpDelete("visees/{id:int}")]
+        public async Task<IActionResult> DeleteVisee(int id)
+        {
+            var visee = await _context.Visees.FindAsync(id);
+            if (visee == null) return NotFound();
+            _context.Visees.Remove(visee);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Impossible : cette visée est utilisée dans des séances" }); }
+            return Ok();
+        }
+
+        // ──────────────────────────────────────────────────────────────────
+        // LIEN VISÉE ↔ VISÉE À MAÎTRISER  (lien_visee_maitrise)
+        // ──────────────────────────────────────────────────────────────────
+
+        // GET /api/admin-data/lien-visee-maitrise
+        // Retourne toutes les liaisons existantes entre visées et visées à maîtriser
+        [HttpGet("lien-visee-maitrise")]
+        public async Task<IActionResult> GetLiensViseeMaitrise()
+        {
+            var list = await _context.Visees
+                .Include(v => v.IdViseesMaitriserFks)
+                .Include(v => v.IdDomaineFkNavigation)
+                    .ThenInclude(d => d.IdCoursNiveauFkNavigation)
+                        .ThenInclude(cn => cn.IdCoursFkNavigation)
+                .Include(v => v.IdNomViseeFkNavigation)
+                .Where(v => v.IdViseesMaitriserFks.Any())
+                .SelectMany(v => v.IdViseesMaitriserFks.Select(vm => new
+                {
+                    IdVisee            = v.IdVisee,
+                    ContexteVisee      = v.IdNomViseeFkNavigation.NomVisee1 + " / " +
+                                         v.IdDomaineFkNavigation.IdCoursNiveauFkNavigation.IdCoursFkNavigation.NomCours + " — " +
+                                         v.IdDomaineFkNavigation.Nom,
+                    IdViseesMaitriser  = vm.IdViseesMaitriser,
+                    NomViseesMaitriser = vm.NomViseesMaitriser
+                }))
+                .ToListAsync();
+            return Ok(list);
+        }
+
+        // POST /api/admin-data/lien-visee-maitrise
+        // Crée le lien entre une visée et une visée à maîtriser
+        [HttpPost("lien-visee-maitrise")]
+        public async Task<IActionResult> CreateLienViseeMaitrise([FromBody] CreateLienViseeMaitriseDto dto)
+        {
+            // Chargement de la visée avec sa collection de visées à maîtriser déjà liées
+            var visee = await _context.Visees
+                .Include(v => v.IdViseesMaitriserFks)
+                .FirstOrDefaultAsync(v => v.IdVisee == dto.IdVisee);
+            if (visee == null) return NotFound(new { message = "Visée introuvable" });
+
+            // Vérification que la visée à maîtriser cible existe
+            var vm = await _context.ViseesMaitrisers.FindAsync(dto.IdViseesMaitriser);
+            if (vm == null) return NotFound(new { message = "Visée à maîtriser introuvable" });
+
+            // Vérifie que la liaison n'existe pas déjà pour éviter un doublon
+            if (visee.IdViseesMaitriserFks.Any(x => x.IdViseesMaitriser == dto.IdViseesMaitriser))
+                return BadRequest(new { message = "Cette liaison existe déjà" });
+
+            // Ajout de la visée à maîtriser dans la collection EF (génère l'INSERT dans lien_visee_maitrise)
+            visee.IdViseesMaitriserFks.Add(vm);
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+        // DELETE /api/admin-data/lien-visee-maitrise/{idVisee}/{idVm}
+        // Supprime le lien entre une visée et une visée à maîtriser
+        [HttpDelete("lien-visee-maitrise/{idVisee:int}/{idVm:int}")]
+        public async Task<IActionResult> DeleteLienViseeMaitrise(int idVisee, int idVm)
+        {
+            var visee = await _context.Visees
+                .Include(v => v.IdViseesMaitriserFks)
+                .FirstOrDefaultAsync(v => v.IdVisee == idVisee);
+            if (visee == null) return NotFound();
+
+            var vm = visee.IdViseesMaitriserFks.FirstOrDefault(x => x.IdViseesMaitriser == idVm);
+            if (vm == null) return NotFound();
+
+            // Retrait de la visée à maîtriser de la collection (génère le DELETE dans lien_visee_maitrise)
+            visee.IdViseesMaitriserFks.Remove(vm);
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
+
+        // ──────────────────────────────────────────────────────────────────
+        // APPARTENIR VISÉE APTITUDE  (visées_maitriser ↔ aptitude ↔ compétence)
+        // ──────────────────────────────────────────────────────────────────
+
+        // GET /api/admin-data/appartenir-visee-aptitude
+        // Retourne toutes les liaisons visée_maitriser + aptitude + compétence
+        [HttpGet("appartenir-visee-aptitude")]
+        public async Task<IActionResult> GetAppartenirViseeAptitude()
+        {
+            var list = await _context.AppartenirViseeAptitudes
+                .Include(a => a.IdViseesMaitriserFkNavigation)
+                .Include(a => a.IdAptitudeFkNavigation)
+                .Include(a => a.IdCompetenceFkNavigation)
+                .OrderBy(a => a.IdViseesMaitriserFkNavigation.NomViseesMaitriser)
+                .Select(a => new
+                {
+                    a.IdAppartenirViseeAptitude,
+                    a.IdViseesMaitriserFk, NomVm        = a.IdViseesMaitriserFkNavigation.NomViseesMaitriser,
+                    a.IdAptitudeFk,        NomAptitude  = a.IdAptitudeFkNavigation != null ? a.IdAptitudeFkNavigation.NomAptitude : null,
+                    a.IdCompetenceFk,      NomComp      = a.IdCompetenceFkNavigation.NomCompetence
+                })
+                .ToListAsync();
+            return Ok(list);
+        }
+
+        // POST /api/admin-data/appartenir-visee-aptitude
+        // Crée une liaison visée_maitriser + aptitude + compétence
+        [HttpPost("appartenir-visee-aptitude")]
+        public async Task<IActionResult> CreateAppartenirViseeAptitude([FromBody] CreateAppartenirDto dto)
+        {
+            var entry = new AppartenirViseeAptitude
+            {
+                IdViseesMaitriserFk = dto.IdViseesMaitriserFk,
+                IdAptitudeFk        = dto.IdAptitudeFk,
+                IdCompetenceFk      = dto.IdCompetenceFk
+            };
+            _context.AppartenirViseeAptitudes.Add(entry);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Erreur lors de la création de la liaison" }); }
+            return Ok(new { entry.IdAppartenirViseeAptitude });
+        }
+
+        // DELETE /api/admin-data/appartenir-visee-aptitude/{id}
+        // Supprime une liaison visée_maitriser + aptitude + compétence
+        [HttpDelete("appartenir-visee-aptitude/{id:int}")]
+        public async Task<IActionResult> DeleteAppartenirViseeAptitude(int id)
+        {
+            var entry = await _context.AppartenirViseeAptitudes.FindAsync(id);
+            if (entry == null) return NotFound();
+            _context.AppartenirViseeAptitudes.Remove(entry);
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -564,5 +757,29 @@ namespace seragenda.Controllers
     public class SimpleNomAdminDto
     {
         public string Nom { get; set; } = "";
+    }
+
+    // DTO de création pour une visée (objectif d'apprentissage)
+    public class CreateViseeAdminDto
+    {
+        public int  IdNomViseeFk    { get; set; }
+        public int  IdDomaineFk     { get; set; }
+        public int? IdSousDomaineFk { get; set; }
+        public int  IdCompFk        { get; set; }
+    }
+
+    // DTO de création pour la liaison visée ↔ visée à maîtriser (lien_visee_maitrise)
+    public class CreateLienViseeMaitriseDto
+    {
+        public int IdVisee           { get; set; }
+        public int IdViseesMaitriser { get; set; }
+    }
+
+    // DTO de création pour la liaison visée_maitriser ↔ aptitude ↔ compétence (appartenir_visee_aptitude)
+    public class CreateAppartenirDto
+    {
+        public int  IdViseesMaitriserFk { get; set; }
+        public int? IdAptitudeFk        { get; set; }
+        public int  IdCompetenceFk      { get; set; }
     }
 }
