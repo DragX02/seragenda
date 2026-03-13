@@ -29,4 +29,12 @@
     <Folder Include="Models\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Inclut tous les PDFs du dossier Referentiel dans l'output de publication -->
+    <!-- CopyToOutputDirectory garantit leur présence dans ./publish/Referentiel/ -->
+    <Content Include="Referentiel\*.pdf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
