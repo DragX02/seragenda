@@ -486,9 +486,8 @@ namespace seragenda.Controllers
         [HttpPost("sous-domaines")]
         public async Task<IActionResult> CreateSousDomaine([FromBody] CreateSousDomaineAdminDto dto)
         {
-            if (string.IsNullOrWhiteSpace(dto.NomComp))
-                return BadRequest(new { message = "Le nom est requis" });
-            var sd = new Sousdomaine { NomComp = dto.NomComp.Trim(), IdDomFk = dto.IdDomFk };
+            // NomComp est optionnel : un sous-domaine peut ne pas avoir de nom distinct
+            var sd = new Sousdomaine { NomComp = dto.NomComp?.Trim() ?? "", IdDomFk = dto.IdDomFk };
             _context.Sousdomaines.Add(sd);
             try { await _context.SaveChangesAsync(); }
             catch { return BadRequest(new { message = "Erreur lors de la création du sous-domaine" }); }
@@ -748,8 +747,8 @@ namespace seragenda.Controllers
     // DTO de création pour un sous-domaine
     public class CreateSousDomaineAdminDto
     {
-        public string NomComp { get; set; } = "";
-        public int IdDomFk    { get; set; }
+        public string? NomComp { get; set; }
+        public int IdDomFk     { get; set; }
     }
 
     // DTO générique pour les entités ne contenant qu'un nom (compétence, aptitude, nom visée, visée à maîtriser)
