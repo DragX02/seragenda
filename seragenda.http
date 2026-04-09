@@ -1,0 +1,6 @@
+@seragenda_HostAddress = http://localhost:5276
+
+GET {{seragenda_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

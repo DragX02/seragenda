@@ -1,0 +1,14 @@
+## .NET / ASP.NET Core
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.log
+
+## Secrets — ne jamais committer
+appsettings.Production.json
+appsettings.*.local.json
+
+## Build output
+publish/
