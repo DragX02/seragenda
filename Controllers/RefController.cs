@@ -107,6 +107,7 @@ namespace seragenda.Controllers
                     cn.IdCoursFkNavigation.CodeCours   == codeCours &&
                     cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau)
                 .SelectMany(cn => cn.Domaines)
+                .Where(d => d.Visees.Any())
                 .OrderBy(d => d.Nom)
                 .Select(d => new { d.IdDom, d.Nom })
                 .ToListAsync();
