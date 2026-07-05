@@ -94,6 +94,64 @@ namespace seragenda.Controllers
             return Ok(niveaux);
         }
 
+        // GET /api/ref/niveaux
+        // Retourne tous les niveaux d'enseignement qui possèdent au moins un domaine
+        // renseigné (avec des visées). Alimente la PREMIÈRE liste déroulante de la
+        // cascade réordonnée où l'année (niveau) est choisie en premier.
+        [HttpGet("niveaux")]
+        public async Task<IActionResult> GetNiveauxTous()
+        {
+            var niveaux = await _context.CoursNiveaus
+                // Ne garder que les niveaux dont au moins une combinaison cours-niveau
+                // possède des domaines contenant des visées (évite les branches vides)
+                .Where(cn => cn.Domaines.Any(d => d.Visees.Any()))
+                // Naviguer vers l'entité Niveau à travers la table de liaison
+                .Select(cn => cn.IdNiveauFkNavigation)
+                // Supprimer les doublons (plusieurs cours/professeurs partagent un même niveau)
+                .Distinct()
+                .OrderBy(n => n.CodeNiveau)
+                .Select(n => new { n.CodeNiveau, n.NomNiveau })
+                .ToListAsync();
+
+            return Ok(niveaux);
+        }
+
+        // GET /api/ref/categories/by-niveau/{codeNiveau}
+        // Retourne les catégories possédant au moins un cours enseigné au niveau donné
+        // (et dont la combinaison cours-niveau contient des domaines avec visées).
+        // Deuxième étape de la cascade réordonnée : Année → Catégorie.
+        [HttpGet("categories/by-niveau/{codeNiveau}")]
+        public async Task<IActionResult> GetCategoriesByNiveau(string codeNiveau)
+        {
+            var categories = await _context.CategorieCours
+                .Where(cat => cat.Cours.Any(co => co.CoursNiveaus.Any(cn =>
+                    cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau &&
+                    cn.Domaines.Any(d => d.Visees.Any()))))
+                .OrderBy(cat => cat.Ordre)
+                .Select(cat => new { cat.IdCat, cat.NomCat, cat.Ordre })
+                .ToListAsync();
+
+            return Ok(categories);
+        }
+
+        // GET /api/ref/cours/by-cat-niveau/{idCat}/{codeNiveau}
+        // Retourne les cours d'une catégorie enseignés à un niveau donné (avec visées).
+        // Troisième étape de la cascade réordonnée : Année → Catégorie → Cours.
+        [HttpGet("cours/by-cat-niveau/{idCat:int}/{codeNiveau}")]
+        public async Task<IActionResult> GetCoursByCatNiveau(int idCat, string codeNiveau)
+        {
+            var cours = await _context.Cours
+                .Where(c => c.IdCatFk == idCat &&
+                    c.CoursNiveaus.Any(cn =>
+                        cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau &&
+                        cn.Domaines.Any(d => d.Visees.Any())))
+                .OrderBy(c => c.NomCours)
+                .Select(c => new { c.CodeCours, c.NomCours, c.CouleurAgenda })
+                .ToListAsync();
+
+            return Ok(cours);
+        }
+
         // GET /api/ref/domaines/{codeCours}/{codeNiveau}
         // Retourne les domaines pour une combinaison cours + niveau donnée
         [HttpGet("domaines/{codeCours}/{codeNiveau}")]
