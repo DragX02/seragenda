@@ -64,6 +64,13 @@ namespace seragenda.Controllers
             var notes = await _context.UserNotes
                 .Where(n => n.IdUserFk == userId && n.Date >= dayStart && n.Date < dayEnd)
                 .OrderBy(n => n.Hour)
+                .Select(n => new
+                {
+                    n.Id, n.Date, n.Hour, n.EndHour, n.Content,
+                    n.CreatedAt, n.ModifiedAt, n.IdViseeFk,
+                    ViseeLabel = n.Visee == null ? null :
+                        n.Visee.IdNomViseeFkNavigation.NomVisee1 + " — " + n.Visee.IdCompFkNavigation.NomCompetence
+                })
                 .ToListAsync();
 
             return Ok(notes);
@@ -90,6 +97,13 @@ namespace seragenda.Controllers
                 .Where(n => n.IdUserFk == userId && n.Date >= start.Date && n.Date <= end.Date)
                 .OrderBy(n => n.Date)  // Tri par date en premier (ordre chronologique entre les jours)
                 .ThenBy(n => n.Hour)   // Puis par heure dans chaque jour
+                .Select(n => new
+                {
+                    n.Id, n.Date, n.Hour, n.EndHour, n.Content,
+                    n.CreatedAt, n.ModifiedAt, n.IdViseeFk,
+                    ViseeLabel = n.Visee == null ? null :
+                        n.Visee.IdNomViseeFkNavigation.NomVisee1 + " — " + n.Visee.IdCompFkNavigation.NomCompetence
+                })
                 .ToListAsync();
 
             return Ok(notes);

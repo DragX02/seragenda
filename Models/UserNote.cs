@@ -38,6 +38,10 @@ public class UserNote
     // via la cascade de sélection. Null si aucune visée n'a été rattachée.
     public int? IdViseeFk { get; set; }
 
+    // Propriété de navigation vers la visée liée (chargée pour composer le libellé affiché
+    // dans le calendrier). Nullable car la note peut n'avoir aucune visée.
+    public virtual Visee? Visee { get; set; }
+
     // Propriété de navigation vers l'enregistrement Utilisateur propriétaire
     // Marquée comme nullable car elle n'est pas toujours chargée en mode eager
     public virtual Utilisateur? User { get; set; }
