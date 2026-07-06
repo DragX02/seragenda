@@ -64,13 +64,6 @@ namespace seragenda.Controllers
             var notes = await _context.UserNotes
                 .Where(n => n.IdUserFk == userId && n.Date >= dayStart && n.Date < dayEnd)
                 .OrderBy(n => n.Hour)
-                .Select(n => new
-                {
-                    n.Id, n.Date, n.Hour, n.EndHour, n.Content,
-                    n.CreatedAt, n.ModifiedAt, n.IdViseeFk,
-                    ViseeLabel = n.Visee == null ? null :
-                        n.Visee.IdNomViseeFkNavigation.NomVisee1 + " — " + n.Visee.IdCompFkNavigation.NomCompetence
-                })
                 .ToListAsync();
 
             return Ok(notes);
@@ -97,13 +90,6 @@ namespace seragenda.Controllers
                 .Where(n => n.IdUserFk == userId && n.Date >= start.Date && n.Date <= end.Date)
                 .OrderBy(n => n.Date)  // Tri par date en premier (ordre chronologique entre les jours)
                 .ThenBy(n => n.Hour)   // Puis par heure dans chaque jour
-                .Select(n => new
-                {
-                    n.Id, n.Date, n.Hour, n.EndHour, n.Content,
-                    n.CreatedAt, n.ModifiedAt, n.IdViseeFk,
-                    ViseeLabel = n.Visee == null ? null :
-                        n.Visee.IdNomViseeFkNavigation.NomVisee1 + " — " + n.Visee.IdCompFkNavigation.NomCompetence
-                })
                 .ToListAsync();
 
             return Ok(notes);
@@ -159,6 +145,18 @@ namespace seragenda.Controllers
             // Normalise l'absence de visée : 0 (valeur par défaut du client) → null
             if (note.IdViseeFk == 0) note.IdViseeFk = null;
 
+            // Assainit le contexte de cascade (texte composé côté client) : supprime les balises
+            // HTML et limite la longueur ; chaîne vide → null.
+            if (!string.IsNullOrWhiteSpace(note.ViseeContexte))
+            {
+                var ctx = System.Text.RegularExpressions.Regex.Replace(note.ViseeContexte, "<[^>]*>", string.Empty).Trim();
+                note.ViseeContexte = ctx.Length > 2000 ? ctx[..2000] : (ctx.Length == 0 ? null : ctx);
+            }
+            else
+            {
+                note.ViseeContexte = null;
+            }
+
             if (note.Id == 0)
             {
                 // Nouvelle note — enregistrement des horodatages de création et de modification
@@ -174,11 +172,12 @@ namespace seragenda.Controllers
                 if (existing == null) return NotFound();
 
                 // Mise à jour uniquement des champs de contenu et de timing ; l'horodatage de création est immuable
-                existing.Content    = note.Content;
-                existing.Hour       = note.Hour;
-                existing.EndHour    = note.EndHour;
-                existing.IdViseeFk  = note.IdViseeFk;
-                existing.ModifiedAt = DateTime.UtcNow;
+                existing.Content       = note.Content;
+                existing.Hour          = note.Hour;
+                existing.EndHour       = note.EndHour;
+                existing.IdViseeFk     = note.IdViseeFk;
+                existing.ViseeContexte = note.ViseeContexte;
+                existing.ModifiedAt    = DateTime.UtcNow;
             }
 
             // Persistance de l'insertion ou de la mise à jour

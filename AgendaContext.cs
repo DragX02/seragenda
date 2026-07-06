@@ -696,16 +696,13 @@ public partial class AgendaContext : DbContext
             entity.Property(e => e.ModifiedAt).HasColumnType("timestamp without time zone").HasColumnName("modified_at");
             // Visée du référentiel rattachée à la note (nullable)
             entity.Property(e => e.IdViseeFk).HasColumnName("id_visee_fk");
+            // Contexte complet de la cascade, texte figé au moment de l'enregistrement
+            entity.Property(e => e.ViseeContexte).HasColumnName("visee_contexte");
 
             // FK vers Utilisateur ; pas de propriété de navigation côté "many"
             entity.HasOne(d => d.User).WithMany()
                 .HasForeignKey(d => d.IdUserFk)
                 .HasConstraintName("user_note_id_user_fk_fkey");
-
-            // FK optionnelle vers Visee ; permet de composer le libellé affiché au calendrier
-            entity.HasOne(d => d.Visee).WithMany()
-                .HasForeignKey(d => d.IdViseeFk)
-                .HasConstraintName("user_note_id_visee_fk_fkey");
         });
 
         // --- Configuration de l'entité License ---

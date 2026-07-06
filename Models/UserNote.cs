@@ -38,9 +38,11 @@ public class UserNote
     // via la cascade de sélection. Null si aucune visée n'a été rattachée.
     public int? IdViseeFk { get; set; }
 
-    // Propriété de navigation vers la visée liée (chargée pour composer le libellé affiché
-    // dans le calendrier). Nullable car la note peut n'avoir aucune visée.
-    public virtual Visee? Visee { get; set; }
+    // Contexte complet de la sélection en cascade, composé côté client au moment de
+    // l'enregistrement (Année, Catégorie, Cours, Domaine, [Sous-domaine], Compétence,
+    // Visée, Visée à maîtriser), une ligne par niveau. Affiché tel quel dans le calendrier.
+    // Fige le libellé choisi (la VM n'est pas dérivable de l'id de visée seul). Null si non renseigné.
+    public string? ViseeContexte { get; set; }
 
     // Propriété de navigation vers l'enregistrement Utilisateur propriétaire
     // Marquée comme nullable car elle n'est pas toujours chargée en mode eager

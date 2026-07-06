@@ -12,6 +12,10 @@
 ALTER TABLE public.user_note
     ADD COLUMN IF NOT EXISTS id_visee_fk integer NULL;
 
+-- Contexte complet de la cascade (texte fige compose cote client) affiche au calendrier.
+ALTER TABLE public.user_note
+    ADD COLUMN IF NOT EXISTS visee_contexte text NULL;
+
 -- Contrainte FK : si la visee est supprimee, la note conserve la ligne
 -- mais id_visee_fk repasse a NULL (ON DELETE SET NULL).
 DO $$
