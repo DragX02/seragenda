@@ -142,6 +142,9 @@ namespace seragenda.Controllers
             // Force le propriétaire à être l'utilisateur actuellement authentifié
             note.IdUserFk = userId.Value;
 
+            // Normalise l'absence de visée : 0 (valeur par défaut du client) → null
+            if (note.IdViseeFk == 0) note.IdViseeFk = null;
+
             if (note.Id == 0)
             {
                 // Nouvelle note — enregistrement des horodatages de création et de modification
@@ -160,6 +163,7 @@ namespace seragenda.Controllers
                 existing.Content    = note.Content;
                 existing.Hour       = note.Hour;
                 existing.EndHour    = note.EndHour;
+                existing.IdViseeFk  = note.IdViseeFk;
                 existing.ModifiedAt = DateTime.UtcNow;
             }
 

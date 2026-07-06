@@ -694,6 +694,8 @@ public partial class AgendaContext : DbContext
             entity.Property(e => e.Content).HasColumnName("content");
             entity.Property(e => e.CreatedAt).HasColumnType("timestamp without time zone").HasColumnName("created_at");
             entity.Property(e => e.ModifiedAt).HasColumnType("timestamp without time zone").HasColumnName("modified_at");
+            // Visée du référentiel rattachée à la note (nullable, sans propriété de navigation)
+            entity.Property(e => e.IdViseeFk).HasColumnName("id_visee_fk");
 
             // FK vers Utilisateur ; pas de propriété de navigation côté "many"
             entity.HasOne(d => d.User).WithMany()

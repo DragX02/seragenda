@@ -34,6 +34,10 @@ public class UserNote
     // Horodatage UTC de la dernière modification du contenu ou du créneau horaire de cette note
     public DateTime ModifiedAt { get; set; }
 
+    // Clé étrangère optionnelle vers la visée (objectif du référentiel) associée à cette note
+    // via la cascade de sélection. Null si aucune visée n'a été rattachée.
+    public int? IdViseeFk { get; set; }
+
     // Propriété de navigation vers l'enregistrement Utilisateur propriétaire
     // Marquée comme nullable car elle n'est pas toujours chargée en mode eager
     public virtual Utilisateur? User { get; set; }
