@@ -135,9 +135,20 @@ namespace seragenda.Controllers
             // La grille d'agenda commence à 6 et se termine à 22 ; rejet des heures de début hors de cette plage
             if (note.Hour < 6 || note.Hour > 22) return BadRequest("Heure de début invalide.");
 
-            // EndHour doit être strictement après Hour et dans la limite de la grille (max 23)
-            // Si invalide, EndHour est limité à une heure après le début
-            if (note.EndHour <= note.Hour || note.EndHour > 23) note.EndHour = note.Hour + 1;
+            // Normalise les minutes sur un pas de 5, bornées à [0, 55]
+            note.Minute    = NormalizeMinute(note.Minute);
+            note.EndMinute = NormalizeMinute(note.EndMinute);
+
+            // La fin (EndHour:EndMinute) doit être strictement après le début (Hour:Minute)
+            // et rester dans la limite de la grille (max 23h). Sinon, la fin est fixée
+            // à une heure après le début, en conservant la même minute.
+            int startTotal = note.Hour * 60 + note.Minute;
+            int endTotal   = note.EndHour * 60 + note.EndMinute;
+            if (note.EndHour < 6 || note.EndHour > 23 || endTotal <= startTotal)
+            {
+                note.EndHour   = note.Hour + 1;
+                note.EndMinute = note.Minute;
+            }
 
             // Force le propriétaire à être l'utilisateur actuellement authentifié
             note.IdUserFk = userId.Value;
@@ -175,6 +186,8 @@ namespace seragenda.Controllers
                 existing.Content       = note.Content;
                 existing.Hour          = note.Hour;
                 existing.EndHour       = note.EndHour;
+                existing.Minute        = note.Minute;
+                existing.EndMinute     = note.EndMinute;
                 existing.IdViseeFk     = note.IdViseeFk;
                 existing.ViseeContexte = note.ViseeContexte;
                 existing.ModifiedAt    = DateTime.UtcNow;
@@ -183,6 +196,16 @@ namespace seragenda.Controllers
             // Persistance de l'insertion ou de la mise à jour
             await _context.SaveChangesAsync();
             return Ok(note);
+        }
+
+        // Ramène une minute dans l'intervalle [0, 55] en la tronquant au multiple de 5 inférieur.
+        // Les flèches de l'interface avancent déjà par pas de 5 ; ce filet garantit une valeur propre
+        // même si un client envoie une minute arbitraire.
+        private static int NormalizeMinute(int minute)
+        {
+            if (minute < 0) minute = 0;
+            if (minute > 59) minute = 59;
+            return (minute / 5) * 5;
         }
 
         // DELETE /api/notes/{id}

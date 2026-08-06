@@ -690,6 +690,9 @@ public partial class AgendaContext : DbContext
             entity.Property(e => e.Date).HasColumnType("date").HasColumnName("date");
             entity.Property(e => e.Hour).HasColumnName("hour");
             entity.Property(e => e.EndHour).HasColumnName("end_hour");
+            // Minutes (0–55, pas de 5) ; valeur par défaut 0 côté BDD pour les lignes existantes
+            entity.Property(e => e.Minute).HasColumnName("minute").HasDefaultValue(0);
+            entity.Property(e => e.EndMinute).HasColumnName("end_minute").HasDefaultValue(0);
             // Colonne texte pour le contenu en texte brut de la note
             entity.Property(e => e.Content).HasColumnName("content");
             entity.Property(e => e.CreatedAt).HasColumnType("timestamp without time zone").HasColumnName("created_at");

@@ -24,6 +24,14 @@ public class UserNote
     // Plage valide : 7 à 23 ; doit être strictement supérieure à Hour.
     public int EndHour { get; set; }
 
+    // La minute de début associée à Hour (0–55, par pas de 5).
+    // Vaut 0 pour les notes créées avant l'introduction des minutes.
+    public int Minute { get; set; }
+
+    // La minute de fin associée à EndHour (0–55, par pas de 5).
+    // La fin (EndHour:EndMinute) doit être strictement postérieure au début (Hour:Minute).
+    public int EndMinute { get; set; }
+
     // Le contenu textuel de la note ; les balises HTML sont supprimées côté serveur avant le stockage.
     // Longueur maximale imposée côté serveur : 2000 caractères.
     public string Content { get; set; } = string.Empty;
