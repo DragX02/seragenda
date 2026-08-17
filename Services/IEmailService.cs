@@ -14,6 +14,14 @@ public interface IEmailService
     //                   que l'utilisateur doit visiter pour terminer son inscription
     Task SendConfirmationEmailAsync(string toEmail, string prenom, string confirmationUrl);
 
+    // Envoie un e-mail de réinitialisation de mot de passe contenant un lien à durée de vie limitée.
+    // Déclenché quand l'utilisateur déclare avoir oublié son mot de passe depuis la page de connexion.
+    // toEmail : adresse e-mail du destinataire (l'adresse enregistrée sur le compte)
+    // prenom : prénom du destinataire, utilisé pour personnaliser le message
+    // resetUrl : URL complète de réinitialisation (ex. https://obrigenie.app/reset-password?token=...)
+    //            où l'utilisateur pourra choisir un nouveau mot de passe
+    Task SendPasswordResetEmailAsync(string toEmail, string prenom, string resetUrl);
+
     // Envoie un e-mail de bienvenue à un utilisateur qui vient de créer un compte via OAuth (Google ou Microsoft).
     // Aucun lien de confirmation n'est nécessaire car le fournisseur OAuth a déjà vérifié l'e-mail.
     // toEmail : adresse e-mail du destinataire

@@ -62,6 +62,16 @@ public partial class Utilisateur
     // Date/heure d'expiration UTC du jeton de confirmation ; le jeton est invalide après ce point
     public DateTime? ConfirmationTokenExpiresAt { get; set; }
 
+    // Jeton à usage unique envoyé par email lorsque l'utilisateur demande la réinitialisation
+    // de son mot de passe (mot de passe oublié). Effacé dès que le nouveau mot de passe est enregistré.
+    // Remarque : les colonnes reset_token et reset_token_expires_at doivent être ajoutées via ALTER TABLE
+    // (voir sql_add_password_reset.sql) avant le déploiement.
+    public string? ResetToken { get; set; }
+
+    // Date/heure d'expiration UTC du jeton de réinitialisation ; fenêtre courte (1 heure)
+    // car il permet de reprendre le contrôle du compte
+    public DateTime? ResetTokenExpiresAt { get; set; }
+
     // Propriété de navigation : tous les enregistrements d'abonnement associés à cet utilisateur
     public virtual ICollection<Abonnement> Abonnements { get; set; } = new List<Abonnement>();
 

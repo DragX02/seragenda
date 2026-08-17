@@ -530,6 +530,14 @@ public partial class AgendaContext : DbContext
             entity.Property(e => e.ConfirmationTokenExpiresAt)
                 .HasColumnType("timestamp without time zone")
                 .HasColumnName("confirmation_token_expires_at");
+            // Jeton de réinitialisation de mot de passe envoyé par email (mot de passe oublié)
+            entity.Property(e => e.ResetToken)
+                .HasMaxLength(100)
+                .HasColumnName("reset_token");
+            // Expiration du jeton de réinitialisation (1 heure après la demande) ; sans fuseau horaire, UTC par convention
+            entity.Property(e => e.ResetTokenExpiresAt)
+                .HasColumnType("timestamp without time zone")
+                .HasColumnName("reset_token_expires_at");
         });
 
         // --- Configuration de l'entité UtilisationChapitre ---

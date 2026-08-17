@@ -62,29 +62,38 @@ public class EmailService : IEmailService
         };
         message.Body = bodyBuilder.ToMessageBody();
 
-        try
+        // Envoi via SMTP ; l'exception est journalisée puis relancée pour que l'appelant décide
+        await SendViaSmtpAsync(message, toEmail, "confirmation");
+    }
+
+    // Envoie un e-mail HTML contenant un lien permettant de choisir un nouveau mot de passe.
+    // Le lien est valable 1 heure et ne peut être utilisé qu'une seule fois (le jeton est effacé après usage).
+    // toEmail : adresse e-mail du destinataire (l'adresse enregistrée sur le compte)
+    // prenom : prénom du destinataire, utilisé pour personnaliser le corps du mail
+    // resetUrl : URL complète que le destinataire doit cliquer pour définir un nouveau mot de passe
+    public async Task SendPasswordResetEmailAsync(string toEmail, string prenom, string resetUrl)
+    {
+        // Lecture des paramètres SMTP depuis la section "EmailSettings"
+        var smtp      = _config.GetSection("EmailSettings");
+        var fromEmail = smtp["FromEmail"] ?? "noreply@obrigenie.app";
+        var fromName  = smtp["FromName"]  ?? "ObriGénie";
+
+        // Construction de l'enveloppe MIME
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(fromName, fromEmail));
+        message.To.Add(new MailboxAddress(prenom, toEmail));
+        message.Subject = "ObriGénie – Réinitialisation de votre mot de passe";
+
+        var bodyBuilder = new BodyBuilder
         {
-            // Ouverture d'une connexion SMTP jetable
-            using var client = new SmtpClient();
-            // Connexion au serveur SMTP avec StartTLS sur le port configuré (généralement 587)
-            await client.ConnectAsync(
-                smtp["Host"] ?? "smtp.gmail.com",
-                int.Parse(smtp["Port"] ?? "587"),
-                SecureSocketOptions.StartTls);
-            // Authentification avec le nom d'utilisateur et le mot de passe SMTP issus de la configuration
-            await client.AuthenticateAsync(smtp["Username"], smtp["Password"]);
-            // Envoi du message
-            await client.SendAsync(message);
-            // Fermeture propre de la session SMTP
-            await client.DisconnectAsync(true);
-        }
-        catch (Exception ex)
-        {
-            // Journalisation de l'erreur avec l'adresse du destinataire pour le diagnostic
-            _logger.LogError(ex, "Échec d'envoi du mail de confirmation à {Email}", toEmail);
-            // Relance de l'exception pour que l'appelant décide de l'ignorer ou de la propager
-            throw;
-        }
+            // Corps HTML riche construit par la méthode privée helper
+            HtmlBody = BuildResetHtml(prenom, resetUrl),
+            // Texte brut de secours pour les clients e-mail qui n'affichent pas le HTML
+            TextBody = $"Bonjour {prenom},\n\nVous avez demandé la réinitialisation de votre mot de passe ObriGénie.\nChoisissez un nouveau mot de passe via ce lien :\n{resetUrl}\n\nLien valable 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail : votre mot de passe reste inchangé."
+        };
+        message.Body = bodyBuilder.ToMessageBody();
+
+        await SendViaSmtpAsync(message, toEmail, "réinitialisation de mot de passe");
     }
 
     // Envoie un e-mail de bienvenue à un utilisateur qui vient de s'inscrire via OAuth (Google ou Microsoft).
@@ -116,20 +125,40 @@ public class EmailService : IEmailService
         };
         message.Body = bodyBuilder.ToMessageBody();
 
+        await SendViaSmtpAsync(message, toEmail, "bienvenue");
+    }
+
+    // Ouvre une connexion SMTP jetable, s'authentifie et envoie le message construit par l'appelant.
+    // Centralise la connexion/authentification/déconnexion commune à tous les e-mails transactionnels.
+    // message : le message MIME complet (expéditeur, destinataire, sujet, corps) prêt à être envoyé
+    // toEmail : adresse du destinataire, uniquement utilisée pour le message de journalisation
+    // typeMail : libellé du type d'e-mail (confirmation, bienvenue, ...) inclus dans le log d'erreur
+    private async Task SendViaSmtpAsync(MimeMessage message, string toEmail, string typeMail)
+    {
+        // Lecture des paramètres SMTP depuis la section "EmailSettings"
+        var smtp = _config.GetSection("EmailSettings");
+
         try
         {
+            // Ouverture d'une connexion SMTP jetable
             using var client = new SmtpClient();
+            // Connexion au serveur SMTP avec StartTLS sur le port configuré (généralement 587)
             await client.ConnectAsync(
                 smtp["Host"] ?? "smtp.gmail.com",
                 int.Parse(smtp["Port"] ?? "587"),
                 SecureSocketOptions.StartTls);
+            // Authentification avec le nom d'utilisateur et le mot de passe SMTP issus de la configuration
             await client.AuthenticateAsync(smtp["Username"], smtp["Password"]);
+            // Envoi du message
             await client.SendAsync(message);
+            // Fermeture propre de la session SMTP
             await client.DisconnectAsync(true);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Échec d'envoi du mail de bienvenue à {Email}", toEmail);
+            // Journalisation de l'erreur avec l'adresse du destinataire pour le diagnostic
+            _logger.LogError(ex, "Échec d'envoi du mail de {TypeMail} à {Email}", typeMail, toEmail);
+            // Relance de l'exception pour que l'appelant décide de l'ignorer ou de la propager
             throw;
         }
     }
@@ -200,6 +229,93 @@ public class EmailService : IEmailService
                       <p style="margin:0;color:#999;font-size:12px;line-height:1.6;text-align:center;">
                         Ce lien est valable <strong>24 heures</strong>.<br />
                         Si vous n'avez pas créé de compte, ignorez cet email.
+                      </p>
+                    </td>
+                  </tr>
+
+                  <!-- Pied de page avec mention de copyright -->
+                  <tr>
+                    <td style="background:#f8f9fa;padding:20px 30px;text-align:center;border-top:1px solid #eee;">
+                      <p style="margin:0;color:#bbb;font-size:12px;">
+                        © {DateTime.UtcNow.Year} Obrigenie – Votre assistant agenda scolaire
+                      </p>
+                    </td>
+                  </tr>
+
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+        """;
+
+    // Construit le corps HTML de l'e-mail de réinitialisation de mot de passe.
+    // Même mise en page tabulaire à styles inline que les autres e-mails, avec un bouton
+    // pointant vers la page frontend /reset-password et un lien texte de secours.
+    // prenom : prénom du destinataire pour la personnalisation
+    // resetUrl : URL complète de réinitialisation à intégrer dans le bouton et le lien de secours
+    // Retourne une chaîne HTML complète prête à être définie comme corps HTML de l'e-mail
+    private static string BuildResetHtml(string prenom, string resetUrl) => $"""
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>Réinitialisation du mot de passe Obrigenie</title>
+        </head>
+        <body style="margin:0;padding:0;background:#f0f2f5;font-family:Arial,Helvetica,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f5;padding:40px 0;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);">
+
+                  <!-- En-tête blanc avec logo texte -->
+                  <tr>
+                    <td style="background:#ffffff;padding:32px 30px 24px;text-align:center;border-bottom:1px solid #eee;">
+                      <span style="font-size:26px;font-weight:800;color:#1a1a2e;letter-spacing:-0.5px;">Obrigenie</span>
+                    </td>
+                  </tr>
+
+                  <!-- Corps blanc avec explication, bouton et lien de secours -->
+                  <tr>
+                    <td style="background:#ffffff;padding:40px 40px 40px;">
+                      <h2 style="margin:0 0 12px;color:#1a1a2e;font-size:22px;">
+                        Mot de passe oublié&nbsp;? 🔑
+                      </h2>
+                      <p style="margin:0 0 20px;color:#444;font-size:16px;line-height:1.6;">
+                        Bonjour {prenom},<br />
+                        Vous avez demandé à réinitialiser le mot de passe de votre compte
+                        <strong>Obrigenie</strong>. Cliquez sur le bouton ci-dessous pour en choisir un nouveau.
+                      </p>
+
+                      <!-- Bouton d'appel à l'action -->
+                      <table cellpadding="0" cellspacing="0" style="margin:32px auto;">
+                        <tr>
+                          <td style="border-radius:10px;background:#1a1a2e;">
+                            <a href="{resetUrl}"
+                               style="display:inline-block;padding:16px 36px;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;letter-spacing:0.3px;">
+                              🔒&nbsp;&nbsp;Choisir un nouveau mot de passe
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+
+                      <!-- Lien texte de secours pour les clients e-mail qui bloquent les clics sur bouton -->
+                      <p style="margin:0 0 8px;color:#666;font-size:13px;text-align:center;">
+                        Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :
+                      </p>
+                      <p style="margin:0 0 24px;text-align:center;">
+                        <a href="{resetUrl}" style="color:#4f46e5;font-size:12px;word-break:break-all;">
+                          {resetUrl}
+                        </a>
+                      </p>
+
+                      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+                      <p style="margin:0;color:#999;font-size:12px;line-height:1.6;text-align:center;">
+                        Ce lien est valable <strong>1 heure</strong> et ne fonctionne qu'une seule fois.<br />
+                        Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail :
+                        votre mot de passe actuel reste inchangé.
                       </p>
                     </td>
                   </tr>

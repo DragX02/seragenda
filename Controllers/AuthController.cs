@@ -264,6 +264,176 @@ namespace seragenda.Controllers
             return Ok(new { message = "Compte confirmé ! Vous pouvez maintenant vous connecter." });
         }
 
+        // POST /api/auth/forgot-password
+        // Limité à 5 requêtes par 15 minutes par IP : empêche d'utiliser ce point de terminaison
+        // pour spammer une boîte mail ou sonder les adresses enregistrées
+        [HttpPost("forgot-password")]
+        [EnableRateLimiting("auth")]
+        // Démarre la procédure "mot de passe oublié" : génère un jeton de réinitialisation à usage
+        // unique valable 1 heure et l'envoie par e-mail à l'adresse enregistrée sur le compte.
+        // La réponse est toujours identique (succès générique), que l'adresse existe ou non,
+        // afin de ne pas révéler quels e-mails sont inscrits (énumération de comptes).
+        // dto : DTO contenant l'adresse e-mail du compte à récupérer
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+        {
+            // Rejet si l'adresse est absente
+            if (string.IsNullOrWhiteSpace(dto.Email))
+            {
+                return BadRequest("L'email est requis.");
+            }
+
+            // Validation du format de l'email avec le validateur personnalisé
+            if (!InputValidator.IsValidEmail(dto.Email))
+            {
+                return BadRequest("Format d'email invalide.");
+            }
+
+            // Blocage des entrées contenant des charges utiles d'injection SQL ou XSS
+            if (InputValidator.ContainsDangerousCharacters(dto.Email))
+            {
+                return BadRequest("Caractères non autorisés détectés.");
+            }
+
+            // Normalisation de l'adresse : les emails sont stockés en minuscules à l'inscription
+            var email = dto.Email.Trim().ToLower();
+            var user  = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.Email == email);
+
+            // Si un compte correspond, on génère le jeton et on envoie l'e-mail.
+            // Sinon on ne fait rien — mais la réponse renvoyée reste la même (voir plus bas).
+            if (user != null)
+            {
+                // Jeton aléatoire de 64 caractères hexadécimaux (deux GUID concaténés), même format
+                // que le jeton de confirmation d'inscription
+                var resetToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+
+                // Enregistrement du jeton et de son expiration : fenêtre courte de 1 heure
+                // car ce jeton donne le contrôle du compte
+                user.ResetToken          = resetToken;
+                user.ResetTokenExpiresAt = DateTime.UtcNow.AddHours(1);
+                await _context.SaveChangesAsync();
+
+                // Construction du lien vers la page frontend qui affiche le formulaire de nouveau mot de passe
+                var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
+                var resetUrl    = $"{frontendUrl}/reset-password?token={resetToken}";
+
+                try
+                {
+                    // Envoi de l'e-mail à l'adresse enregistrée sur le compte (jamais à une adresse fournie autrement)
+                    await _emailService.SendPasswordResetEmailAsync(user.Email, user.Prenom ?? "Utilisateur", resetUrl);
+                }
+                catch
+                {
+                    // Exception ignorée : l'échec SMTP est déjà journalisé par EmailService et
+                    // ne doit pas révéler au client que l'adresse existe. L'utilisateur peut relancer la demande.
+                }
+            }
+
+            // Réponse volontairement identique dans tous les cas (compte trouvé, inconnu ou e-mail en échec)
+            return Ok(new { message = "Si un compte existe avec cette adresse, un e-mail de réinitialisation vient d'être envoyé." });
+        }
+
+        // GET /api/auth/validate-reset-token?token=...
+        // Accessible publiquement — appelé par la page frontend au chargement du lien reçu par e-mail
+        [HttpGet("validate-reset-token")]
+        // Vérifie qu'un jeton de réinitialisation existe encore et n'est pas expiré, sans rien modifier.
+        // Permet à la page frontend d'afficher immédiatement "lien expiré" plutôt que de laisser
+        // l'utilisateur saisir un mot de passe pour rien.
+        // token : le jeton extrait de la chaîne de requête du lien e-mail
+        public async Task<IActionResult> ValidateResetToken([FromQuery] string token)
+        {
+            // Un jeton manquant est définitivement invalide — rejet immédiat
+            if (string.IsNullOrWhiteSpace(token))
+                return BadRequest(new { message = "Token manquant." });
+
+            // Recherche du compte portant exactement ce jeton de réinitialisation
+            var user = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.ResetToken == token);
+
+            // Aucun compte : jeton falsifié, déjà utilisé ou remplacé par une demande plus récente
+            if (user == null || user.ResetTokenExpiresAt == null)
+                return BadRequest(new { message = "Ce lien de réinitialisation est invalide ou a déjà été utilisé." });
+
+            // Rejet des jetons dont la fenêtre de 1 heure est dépassée
+            if (user.ResetTokenExpiresAt < DateTime.UtcNow)
+                return BadRequest(new { message = "Ce lien de réinitialisation a expiré. Demandez-en un nouveau." });
+
+            // Jeton exploitable : la page peut afficher le formulaire de nouveau mot de passe
+            return Ok(new { valid = true, email = user.Email });
+        }
+
+        // POST /api/auth/reset-password
+        // Limité à 5 requêtes par 15 minutes par IP pour empêcher le forçage brutal des jetons
+        [HttpPost("reset-password")]
+        [EnableRateLimiting("auth")]
+        // Termine la procédure "mot de passe oublié" : valide le jeton reçu par e-mail puis
+        // remplace le hash du mot de passe par celui du nouveau mot de passe choisi.
+        // Le jeton est effacé immédiatement après usage (usage unique).
+        // dto : DTO contenant le jeton, le nouveau mot de passe et sa confirmation
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+        {
+            // Les trois champs sont obligatoires
+            if (string.IsNullOrWhiteSpace(dto.Token) ||
+                string.IsNullOrEmpty(dto.Password) ||
+                string.IsNullOrEmpty(dto.ConfirmPassword))
+            {
+                return BadRequest("Token et mot de passe sont requis.");
+            }
+
+            // Validation de la longueur du mot de passe : entre 6 et 100 caractères (même règle qu'à l'inscription)
+            if (!InputValidator.IsValidPassword(dto.Password))
+            {
+                return BadRequest("Le mot de passe doit contenir entre 6 et 100 caractères.");
+            }
+
+            // Blocage des charges utiles d'injection SQL ou XSS dans les champs texte
+            if (InputValidator.ContainsDangerousCharacters(dto.Token) ||
+                InputValidator.ContainsDangerousCharacters(dto.Password))
+            {
+                return BadRequest("Caractères non autorisés détectés.");
+            }
+
+            // Vérification que le mot de passe et sa confirmation correspondent
+            if (dto.Password != dto.ConfirmPassword)
+            {
+                return BadRequest("Les mots de passe ne correspondent pas.");
+            }
+
+            // Recherche du compte portant exactement ce jeton de réinitialisation
+            var user = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.ResetToken == dto.Token);
+
+            // Aucun compte : jeton falsifié, déjà utilisé ou remplacé par une demande plus récente
+            if (user == null || user.ResetTokenExpiresAt == null)
+            {
+                return BadRequest("Ce lien de réinitialisation est invalide ou a déjà été utilisé.");
+            }
+
+            // Rejet des jetons dont la fenêtre de 1 heure est dépassée
+            if (user.ResetTokenExpiresAt < DateTime.UtcNow)
+            {
+                return BadRequest("Ce lien de réinitialisation a expiré. Demandez-en un nouveau.");
+            }
+
+            // Remplacement du hash par celui du nouveau mot de passe (BCrypt, facteur de travail par défaut)
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+
+            // Effacement du jeton pour qu'il ne puisse pas servir une seconde fois
+            user.ResetToken          = null;
+            user.ResetTokenExpiresAt = null;
+
+            // Le clic sur le lien prouve que l'utilisateur contrôle la boîte mail : un compte local
+            // resté non confirmé est donc validé ici, sinon la connexion resterait bloquée après
+            // la réinitialisation. Le jeton d'inscription devenu inutile est effacé.
+            if (!user.IsConfirmed)
+            {
+                user.IsConfirmed                = true;
+                user.ConfirmationToken          = null;
+                user.ConfirmationTokenExpiresAt = null;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Mot de passe modifié ! Vous pouvez maintenant vous connecter." });
+        }
+
         // GET /api/auth/test-email
         // Point de terminaison de développement/débogage — à supprimer ou restreindre avant la mise en production
         [HttpGet("test-email")]
@@ -531,5 +701,26 @@ namespace seragenda.Controllers
         public string? Nom { get; set; }
         // Prénom de l'utilisateur
         public string? Prenom { get; set; }
+    }
+
+    // Objet de transfert de données pour le point de terminaison "mot de passe oublié".
+    // Ne contient que l'adresse e-mail du compte à récupérer ; le lien de réinitialisation
+    // est toujours envoyé à l'adresse enregistrée en base, jamais à une autre.
+    public class ForgotPasswordDto
+    {
+        // Adresse e-mail du compte dont le mot de passe doit être réinitialisé
+        public string? Email { get; set; }
+    }
+
+    // Objet de transfert de données pour le point de terminaison de réinitialisation du mot de passe.
+    // Le jeton provient du lien reçu par e-mail et prouve la propriété de l'adresse.
+    public class ResetPasswordDto
+    {
+        // Jeton de réinitialisation à usage unique extrait de l'URL du lien e-mail
+        public string? Token { get; set; }
+        // Nouveau mot de passe en clair (sera haché avec BCrypt avant stockage)
+        public string? Password { get; set; }
+        // Doit correspondre exactement à Password ; validé côté serveur pour éviter les fautes de frappe
+        public string? ConfirmPassword { get; set; }
     }
 }
