@@ -41,7 +41,7 @@ public class EmailService : IEmailService
         var fromEmail = smtp["FromEmail"] ?? "noreply@obrigenie.app";
         var fromName  = smtp["FromName"]  ?? "ObriGénie";
         // Lecture de l'URL de base du frontend pour construire l'URL du logo
-        var frontUrl  = _config["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
+        var frontUrl  = _config["AppSettings:FrontendUrl"] ?? "https://obrigenie.duckdns.org:8586";
         // Construction de l'URL absolue du logo utilisé dans l'en-tête de l'e-mail
         var logoUrl   = $"{frontUrl}/icon-192.png";
 
@@ -107,7 +107,7 @@ public class EmailService : IEmailService
         var smtp      = _config.GetSection("EmailSettings");
         var fromEmail = smtp["FromEmail"] ?? "noreply@obrigenie.app";
         var fromName  = smtp["FromName"]  ?? "ObriGénie";
-        var frontUrl  = _config["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
+        var frontUrl  = _config["AppSettings:FrontendUrl"] ?? "https://obrigenie.duckdns.org:8586";
         var logoUrl   = $"{frontUrl}/icon-192.png";
 
         // Construction du message MIME

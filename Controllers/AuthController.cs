@@ -211,7 +211,7 @@ namespace seragenda.Controllers
             await _context.SaveChangesAsync();
 
             // Construction de l'URL de confirmation pointant vers la page frontend qui gère la confirmation
-            var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
+            var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://obrigenie.duckdns.org:8586";
             var confirmUrl  = $"{frontendUrl}/confirm-email?token={confirmationToken}";
             try
             {
@@ -313,7 +313,7 @@ namespace seragenda.Controllers
                 await _context.SaveChangesAsync();
 
                 // Construction du lien vers la page frontend qui affiche le formulaire de nouveau mot de passe
-                var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
+                var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://obrigenie.duckdns.org:8586";
                 var resetUrl    = $"{frontendUrl}/reset-password?token={resetToken}";
 
                 try
@@ -442,7 +442,7 @@ namespace seragenda.Controllers
         public async Task<IActionResult> TestEmail()
         {
             // Lecture de l'URL frontend depuis la configuration (identique au flux réel)
-            var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://obrigenie.app";
+            var frontendUrl = _configuration["AppSettings:FrontendUrl"] ?? "https://obrigenie.duckdns.org:8586";
             // Construction d'une URL de confirmation factice avec un jeton fictif
             var testUrl = $"{frontendUrl}/confirm-email?token=TEST_TOKEN_123";
             // Envoi de l'email à l'adresse de test du développeur
