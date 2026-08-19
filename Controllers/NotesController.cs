@@ -1,4 +1,4 @@
-// Importation des attributs d'autorisation ASP.NET Core
+﻿// Importation des attributs d'autorisation ASP.NET Core
 using Microsoft.AspNetCore.Authorization;
 // Importation des types de contrôleur MVC/API de base et des helpers de résultat
 using Microsoft.AspNetCore.Mvc;
@@ -132,23 +132,26 @@ namespace seragenda.Controllers
             if (note.Content.Length > 2000) note.Content = note.Content[..2000];
 
             // --- Validation des heures ---
-            // La grille d'agenda commence à 6 et se termine à 22 ; rejet des heures de début hors de cette plage
-            if (note.Hour < 6 || note.Hour > 22) return BadRequest("Heure de début invalide.");
+            // La grille d'agenda commence à 8 et se termine à 18 ; rejet des heures de début hors de cette plage
+            if (note.Hour < 8 || note.Hour > 17) return BadRequest("Heure de début invalide.");
 
             // Normalise les minutes sur un pas de 5, bornées à [0, 55]
             note.Minute    = NormalizeMinute(note.Minute);
             note.EndMinute = NormalizeMinute(note.EndMinute);
 
             // La fin (EndHour:EndMinute) doit être strictement après le début (Hour:Minute)
-            // et rester dans la limite de la grille (max 23h). Sinon, la fin est fixée
+            // et rester dans la limite de la grille (max 18h). Sinon, la fin est fixée
             // à une heure après le début, en conservant la même minute.
             int startTotal = note.Hour * 60 + note.Minute;
             int endTotal   = note.EndHour * 60 + note.EndMinute;
-            if (note.EndHour < 6 || note.EndHour > 23 || endTotal <= startTotal)
+            if (note.EndHour < 9 || note.EndHour > 18 || endTotal <= startTotal)
             {
                 note.EndHour   = note.Hour + 1;
                 note.EndMinute = note.Minute;
             }
+
+            // 18h00 est la borne de fin de la grille : aucune minute au-dela n'est admise
+            if (note.EndHour == 18) note.EndMinute = 0;
 
             // Force le propriétaire à être l'utilisateur actuellement authentifié
             note.IdUserFk = userId.Value;

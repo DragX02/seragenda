@@ -17,11 +17,11 @@ public class UserNote
     public DateTime Date { get; set; }
 
     // L'heure à laquelle cette note commence dans la grille de l'agenda.
-    // Plage valide : 6 (6h00) à 22 (22h00)
+    // Plage valide : 8 (8h00) à 17 (17h00)
     public int Hour { get; set; }
 
     // L'heure à laquelle cette note se termine dans la grille de l'agenda (borne supérieure exclusive).
-    // Plage valide : 7 à 23 ; doit être strictement supérieure à Hour.
+    // Plage valide : 9 à 18 ; doit être strictement supérieure à Hour.
     public int EndHour { get; set; }
 
     // La minute de début associée à Hour (0–55, par pas de 5).
