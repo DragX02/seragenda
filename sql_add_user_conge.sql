@@ -53,3 +53,18 @@ CREATE INDEX IF NOT EXISTS idx_user_conge_user
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_conge_unique
     ON public.user_conge(id_user_fk, id_calendrier_fk)
     WHERE id_calendrier_fk IS NOT NULL;
+
+-- ============================================================
+-- Droits pour le role utilise par l'API (voir appsettings.Production.json).
+-- La table appartient a l'administrateur qui execute ce script ; sans ces GRANT,
+-- l'API tombe en "42501: permission denied for table user_conge".
+-- Le droit sur la sequence est indispensable : sans lui le SELECT passe mais
+-- l'INSERT echoue, car id est alimente par nextval().
+-- ============================================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'admin_api01') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_conge TO admin_api01;
+        GRANT USAGE, SELECT ON SEQUENCE public.user_conge_id_seq TO admin_api01;
+    END IF;
+END $$;
