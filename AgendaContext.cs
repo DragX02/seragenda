@@ -1,4 +1,4 @@
-// Import des types .NET de base
+﻿// Import des types .NET de base
 using System;
 using System.Collections.Generic;
 // Import d'Entity Framework Core pour DbContext, DbSet et le constructeur de modèle
@@ -102,6 +102,9 @@ public partial class AgendaContext : DbContext
 
     // DbSet pour la table "user_note" — notes personnelles horodatées dans l'agenda quotidien
     public virtual DbSet<UserNote> UserNotes { get; set; }
+
+    // DbSet pour la table "user_conge" — corrections personnelles du calendrier des congés
+    public virtual DbSet<UserConge> UserConges { get; set; }
 
     // DbSet pour la table "license" — enregistrements de clés de licence gérés par les administrateurs
     public virtual DbSet<License> Licenses { get; set; }
@@ -714,6 +717,29 @@ public partial class AgendaContext : DbContext
             entity.HasOne(d => d.User).WithMany()
                 .HasForeignKey(d => d.IdUserFk)
                 .HasConstraintName("user_note_id_user_fk_fkey");
+        });
+
+        // --- Configuration de l'entité UserConge ---
+        modelBuilder.Entity<UserConge>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("user_conge_pkey");
+            entity.ToTable("user_conge");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.IdUserFk).HasColumnName("id_user_fk");
+            // Congé officiel corrigé ; null pour un congé ajouté par l'utilisateur.
+            // Pas de contrainte FK : le scraper peut reconstruire calendrier_scolaire.
+            entity.Property(e => e.IdCalendrierFk).HasColumnName("id_calendrier_fk");
+            entity.Property(e => e.Nom).HasColumnName("nom").HasMaxLength(100);
+            // Stockés comme type PostgreSQL "date" (sans composante horaire)
+            entity.Property(e => e.DateDebut).HasColumnType("date").HasColumnName("date_debut");
+            entity.Property(e => e.DateFin).HasColumnType("date").HasColumnName("date_fin");
+            entity.Property(e => e.Masque).HasColumnName("masque").HasDefaultValue(false);
+
+            // FK vers Utilisateur ; pas de propriété de navigation côté "many"
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.IdUserFk)
+                .HasConstraintName("user_conge_id_user_fk_fkey");
         });
 
         // --- Configuration de l'entité License ---
