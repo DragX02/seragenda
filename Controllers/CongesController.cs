@@ -53,11 +53,21 @@ namespace seragenda.Controllers
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
-            var conges = await _context.UserConges
-                                       .Where(c => c.IdUserFk == userId.Value)
-                                       .OrderBy(c => c.DateDebut)
-                                       .ToListAsync();
-            return Ok(conges);
+            try
+            {
+                var conges = await _context.UserConges
+                                           .Where(c => c.IdUserFk == userId.Value)
+                                           .OrderBy(c => c.DateDebut)
+                                           .ToListAsync();
+                return Ok(conges);
+            }
+            catch (Exception ex)
+            {
+                // Cause la plus fréquente : la table user_conge n'existe pas encore sur cette base,
+                // ou le rôle applicatif n'a pas les droits dessus. Sans ce message, le client ne
+                // recevait qu'un 500 au corps vide, impossible à diagnostiquer.
+                return StatusCode(500, MessageErreur(ex));
+            }
         }
 
         // POST /api/conges
@@ -127,8 +137,25 @@ namespace seragenda.Controllers
                 _context.UserConges.Add(conge);
             }
 
-            await _context.SaveChangesAsync();
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, MessageErreur(ex));
+            }
+
             return Ok(existant ?? conge);
+        }
+
+        // Compose un message d'erreur lisible à partir d'une exception de base de données.
+        // Npgsql place la cause réelle (table absente, droits insuffisants, contrainte violée)
+        // dans l'exception interne : sans elle, le client ne voyait qu'un 500 au corps vide.
+        private static string MessageErreur(Exception ex)
+        {
+            var detail = ex.InnerException?.Message ?? ex.Message;
+            return $"Erreur base de donnees : {detail}";
         }
 
         // DELETE /api/conges/{id}
@@ -140,13 +167,20 @@ namespace seragenda.Controllers
             var userId = await GetUserId();
             if (userId == null) return Unauthorized();
 
-            var conge = await _context.UserConges
-                                      .FirstOrDefaultAsync(c => c.Id == id && c.IdUserFk == userId.Value);
-            if (conge == null) return NotFound();
+            try
+            {
+                var conge = await _context.UserConges
+                                          .FirstOrDefaultAsync(c => c.Id == id && c.IdUserFk == userId.Value);
+                if (conge == null) return NotFound();
 
-            _context.UserConges.Remove(conge);
-            await _context.SaveChangesAsync();
-            return NoContent();
+                _context.UserConges.Remove(conge);
+                await _context.SaveChangesAsync();
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, MessageErreur(ex));
+            }
         }
     }
 }
