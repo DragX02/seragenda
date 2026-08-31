@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 // Importation d'Entity Framework Core pour les requêtes asynchrones en base de données
 using Microsoft.EntityFrameworkCore;
+// Importation des entités du référentiel (création de visées et de liens)
+using seragenda.Models;
 
 namespace seragenda.Controllers
 {
@@ -281,6 +283,147 @@ namespace seragenda.Controllers
             }
 
             return Ok(list);
+        }
+
+        // ──────────────────────────────────────────────────────────────────
+        // TABLES COMPLÈTES ET COMPLÉMENT DU RÉFÉRENTIEL
+        //
+        // Le référentiel est incomplet : un champ (domaine) n'a pas toujours
+        // toutes les compétences ou visées dont l'enseignant a besoin. Ces
+        // points de terminaison lui donnent les tables entières, puis créent
+        // les liens manquants pour que sa sélection existe vraiment en base.
+        // Ils sont ouverts à tout utilisateur authentifié, contrairement à
+        // api/admin-data qui reste réservé au rôle ADMIN.
+        // ──────────────────────────────────────────────────────────────────
+
+        // GET /api/ref/competences
+        // Retourne toutes les compétences de la table, triées par nom
+        [HttpGet("competences")]
+        public async Task<IActionResult> GetToutesCompetences()
+        {
+            var list = await _context.Competences
+                .OrderBy(c => c.NomCompetence)
+                .Select(c => new { c.IdCompetence, c.NomCompetence })
+                .ToListAsync();
+
+            return Ok(list);
+        }
+
+        // GET /api/ref/nom-visees
+        // Retourne tous les intitulés de visée de la table, triés par nom
+        [HttpGet("nom-visees")]
+        public async Task<IActionResult> GetTousNomVisees()
+        {
+            var list = await _context.NomVisees
+                .OrderBy(nv => nv.NomVisee1)
+                .Select(nv => new { nv.IdNomVisee, NomVisee = nv.NomVisee1 })
+                .ToListAsync();
+
+            return Ok(list);
+        }
+
+        // GET /api/ref/visees-maitriser
+        // Retourne toutes les visées à maîtriser de la table, triées par nom.
+        // (La variante avec identifiant ne rend que celles liées à une visée.)
+        [HttpGet("visees-maitriser")]
+        public async Task<IActionResult> GetToutesViseesMaitriser()
+        {
+            var list = await _context.ViseesMaitrisers
+                .OrderBy(vm => vm.NomViseesMaitriser)
+                .Select(vm => new { vm.IdViseesMaitriser, vm.NomViseesMaitriser })
+                .ToListAsync();
+
+            return Ok(list);
+        }
+
+        // POST /api/ref/visees
+        // Rattache un intitulé de visée et une compétence à un champ (domaine) et,
+        // éventuellement, à un domaine (sous-domaine). Si la visée existe déjà, son
+        // identifiant est simplement renvoyé : l'appel est donc rejouable sans risque.
+        [HttpPost("visees")]
+        public async Task<IActionResult> CreerVisee([FromBody] CreerViseeDto dto)
+        {
+            if (dto.IdDomaine <= 0 || dto.IdNomVisee <= 0 || dto.IdCompetence <= 0)
+                return BadRequest(new { message = "Champ, visée et compétence sont obligatoires." });
+
+            int? idSousDomaine = dto.IdSousDomaine > 0 ? dto.IdSousDomaine : null;
+
+            // Les identifiants doivent exister, sinon la contrainte de clé étrangère
+            // renverrait une erreur illisible côté client.
+            if (!await _context.Domaines.AnyAsync(d => d.IdDom == dto.IdDomaine))
+                return BadRequest(new { message = "Champ introuvable." });
+            if (!await _context.NomVisees.AnyAsync(nv => nv.IdNomVisee == dto.IdNomVisee))
+                return BadRequest(new { message = "Intitulé de visée introuvable." });
+            if (!await _context.Competences.AnyAsync(c => c.IdCompetence == dto.IdCompetence))
+                return BadRequest(new { message = "Compétence introuvable." });
+            if (idSousDomaine != null &&
+                !await _context.Sousdomaines.AnyAsync(sd => sd.IdSousDomaine == idSousDomaine))
+                return BadRequest(new { message = "Domaine introuvable." });
+
+            var existante = await _context.Visees.FirstOrDefaultAsync(
+                v => v.IdDomaineFk     == dto.IdDomaine
+                  && v.IdSousDomaineFk == idSousDomaine
+                  && v.IdNomViseeFk    == dto.IdNomVisee
+                  && v.IdCompFk        == dto.IdCompetence);
+
+            if (existante != null) return Ok(new { existante.IdVisee, Creee = false });
+
+            var visee = new Visee
+            {
+                IdDomaineFk     = dto.IdDomaine,
+                IdSousDomaineFk = idSousDomaine,
+                IdNomViseeFk    = dto.IdNomVisee,
+                IdCompFk        = dto.IdCompetence
+            };
+
+            _context.Visees.Add(visee);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Erreur lors de la création de la visée." }); }
+
+            return Ok(new { visee.IdVisee, Creee = true });
+        }
+
+        // POST /api/ref/lien-visee-maitrise
+        // Relie une visée à une visée à maîtriser (table de jointure lien_visee_maitrise).
+        // Rejouable : si le lien existe déjà, la requête réussit sans rien changer.
+        [HttpPost("lien-visee-maitrise")]
+        public async Task<IActionResult> CreerLienViseeMaitrise([FromBody] CreerLienDto dto)
+        {
+            var visee = await _context.Visees
+                .Include(v => v.IdViseesMaitriserFks)
+                .FirstOrDefaultAsync(v => v.IdVisee == dto.IdVisee);
+
+            if (visee == null) return NotFound(new { message = "Visée introuvable." });
+
+            if (visee.IdViseesMaitriserFks.Any(vm => vm.IdViseesMaitriser == dto.IdViseesMaitriser))
+                return Ok(new { Creee = false });
+
+            var vm = await _context.ViseesMaitrisers
+                .FirstOrDefaultAsync(x => x.IdViseesMaitriser == dto.IdViseesMaitriser);
+
+            if (vm == null) return NotFound(new { message = "Visée à maîtriser introuvable." });
+
+            visee.IdViseesMaitriserFks.Add(vm);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Erreur lors de la création du lien." }); }
+
+            return Ok(new { Creee = true });
+        }
+
+        // Corps attendu par POST /api/ref/visees
+        public class CreerViseeDto
+        {
+            public int IdDomaine { get; set; }
+            public int IdSousDomaine { get; set; }   // 0 = aucun
+            public int IdNomVisee { get; set; }
+            public int IdCompetence { get; set; }
+        }
+
+        // Corps attendu par POST /api/ref/lien-visee-maitrise
+        public class CreerLienDto
+        {
+            public int IdVisee { get; set; }
+            public int IdViseesMaitriser { get; set; }
         }
     }
 }
