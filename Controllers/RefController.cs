@@ -336,6 +336,70 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
+        // POST /api/ref/competences
+        // Ajoute une compétence au référentiel. Si le nom existe déjà (à la casse et
+        // aux espaces près), son identifiant est simplement renvoyé.
+        [HttpPost("competences")]
+        public async Task<IActionResult> CreerCompetence([FromBody] CreerNommeDto dto)
+        {
+            var nom = (dto.Nom ?? "").Trim();
+            if (nom.Length == 0) return BadRequest(new { message = "Le nom est obligatoire." });
+
+            var existante = await _context.Competences
+                .FirstOrDefaultAsync(c => c.NomCompetence.ToLower() == nom.ToLower());
+
+            if (existante != null) return Ok(new { existante.IdCompetence, Creee = false });
+
+            var competence = new Competence { NomCompetence = nom };
+            _context.Competences.Add(competence);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Erreur lors de la création de la compétence." }); }
+
+            return Ok(new { competence.IdCompetence, Creee = true });
+        }
+
+        // POST /api/ref/nom-visees
+        // Ajoute un intitulé de visée au référentiel. Rejouable, comme ci-dessus.
+        [HttpPost("nom-visees")]
+        public async Task<IActionResult> CreerNomVisee([FromBody] CreerNommeDto dto)
+        {
+            var nom = (dto.Nom ?? "").Trim();
+            if (nom.Length == 0) return BadRequest(new { message = "Le nom est obligatoire." });
+
+            var existant = await _context.NomVisees
+                .FirstOrDefaultAsync(nv => nv.NomVisee1.ToLower() == nom.ToLower());
+
+            if (existant != null) return Ok(new { existant.IdNomVisee, Creee = false });
+
+            var nomVisee = new NomVisee { NomVisee1 = nom };
+            _context.NomVisees.Add(nomVisee);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Erreur lors de la création de l'intitulé de visée." }); }
+
+            return Ok(new { nomVisee.IdNomVisee, Creee = true });
+        }
+
+        // POST /api/ref/visees-maitriser
+        // Ajoute une visée à maîtriser au référentiel. Rejouable, comme ci-dessus.
+        [HttpPost("visees-maitriser")]
+        public async Task<IActionResult> CreerViseeMaitriser([FromBody] CreerNommeDto dto)
+        {
+            var nom = (dto.Nom ?? "").Trim();
+            if (nom.Length == 0) return BadRequest(new { message = "Le nom est obligatoire." });
+
+            var existante = await _context.ViseesMaitrisers
+                .FirstOrDefaultAsync(vm => vm.NomViseesMaitriser.ToLower() == nom.ToLower());
+
+            if (existante != null) return Ok(new { existante.IdViseesMaitriser, Creee = false });
+
+            var vm2 = new ViseesMaitriser { NomViseesMaitriser = nom };
+            _context.ViseesMaitrisers.Add(vm2);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Erreur lors de la création de la visée à maîtriser." }); }
+
+            return Ok(new { vm2.IdViseesMaitriser, Creee = true });
+        }
+
         // POST /api/ref/visees
         // Rattache un intitulé de visée et une compétence à un champ (domaine) et,
         // éventuellement, à un domaine (sous-domaine). Si la visée existe déjà, son
@@ -408,6 +472,12 @@ namespace seragenda.Controllers
             catch { return BadRequest(new { message = "Erreur lors de la création du lien." }); }
 
             return Ok(new { Creee = true });
+        }
+
+        // Corps attendu par les trois POST qui ajoutent une entrée nommée
+        public class CreerNommeDto
+        {
+            public string? Nom { get; set; }
         }
 
         // Corps attendu par POST /api/ref/visees
