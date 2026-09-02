@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 // Importation des entités du référentiel (création de visées et de liens)
 using seragenda.Models;
+// Importation des claims pour identifier l'enseignant connecté
+using System.Security.Claims;
 
 namespace seragenda.Controllers
 {
@@ -103,10 +105,14 @@ namespace seragenda.Controllers
         [HttpGet("niveaux")]
         public async Task<IActionResult> GetNiveauxTous()
         {
+            var moi = await GetUserId() ?? 0;
+
             var niveaux = await _context.CoursNiveaus
                 // Ne garder que les niveaux dont au moins une combinaison cours-niveau
-                // possède des domaines contenant des visées (évite les branches vides)
-                .Where(cn => cn.Domaines.Any(d => d.Visees.Any()))
+                // possède des domaines contenant des visées (évite les branches vides).
+                // Les liaisons de l'enseignant connecté sont gardées même sans visée :
+                // sans cela, ce qu'il vient de créer n'apparaîtrait jamais.
+                .Where(cn => cn.Domaines.Any(d => d.Visees.Any()) || cn.IdProfFk == moi)
                 // Naviguer vers l'entité Niveau à travers la table de liaison
                 .Select(cn => cn.IdNiveauFkNavigation)
                 // Supprimer les doublons (plusieurs cours/professeurs partagent un même niveau)
@@ -125,10 +131,12 @@ namespace seragenda.Controllers
         [HttpGet("categories/by-niveau/{codeNiveau}")]
         public async Task<IActionResult> GetCategoriesByNiveau(string codeNiveau)
         {
+            var moi = await GetUserId() ?? 0;
+
             var categories = await _context.CategorieCours
                 .Where(cat => cat.Cours.Any(co => co.CoursNiveaus.Any(cn =>
                     cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau &&
-                    cn.Domaines.Any(d => d.Visees.Any()))))
+                    (cn.Domaines.Any(d => d.Visees.Any()) || cn.IdProfFk == moi))))
                 .OrderBy(cat => cat.Ordre)
                 .Select(cat => new { cat.IdCat, cat.NomCat, cat.Ordre })
                 .ToListAsync();
@@ -142,11 +150,13 @@ namespace seragenda.Controllers
         [HttpGet("cours/by-cat-niveau/{idCat:int}/{codeNiveau}")]
         public async Task<IActionResult> GetCoursByCatNiveau(int idCat, string codeNiveau)
         {
+            var moi = await GetUserId() ?? 0;
+
             var cours = await _context.Cours
                 .Where(c => c.IdCatFk == idCat &&
                     c.CoursNiveaus.Any(cn =>
                         cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau &&
-                        cn.Domaines.Any(d => d.Visees.Any())))
+                        (cn.Domaines.Any(d => d.Visees.Any()) || cn.IdProfFk == moi)))
                 .OrderBy(c => c.NomCours)
                 .Select(c => new { c.CodeCours, c.NomCours, c.CouleurAgenda })
                 .ToListAsync();
@@ -162,12 +172,16 @@ namespace seragenda.Controllers
         // Paramètre codeNiveau : le code unique du niveau scolaire
         public async Task<IActionResult> GetDomaines(string codeCours, string codeNiveau)
         {
+            var moi = await GetUserId() ?? 0;
+
             var domaines = await _context.CoursNiveaus
                 .Where(cn =>
                     cn.IdCoursFkNavigation.CodeCours   == codeCours &&
                     cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau)
                 .SelectMany(cn => cn.Domaines)
-                .Where(d => d.Visees.Any())
+                // Un champ sans visée reste proposé à son propre enseignant : c'est le
+                // point de départ obligé quand il vient de le créer.
+                .Where(d => d.Visees.Any() || d.IdCoursNiveauFkNavigation.IdProfFk == moi)
                 .OrderBy(d => d.Nom)
                 .Select(d => new { d.IdDom, d.Nom })
                 .ToListAsync();
@@ -336,6 +350,98 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
+        // Clé primaire de l'utilisateur connecté, résolue depuis le claim Name (son email).
+        // Null si le claim est absent ou si l'utilisateur est introuvable.
+        private async Task<int?> GetUserId()
+        {
+            var email = User.FindFirst(ClaimTypes.Name)?.Value;
+            if (email == null) return null;
+            var user = await _context.Utilisateurs.FirstOrDefaultAsync(u => u.Email == email);
+            return user?.IdUser;
+        }
+
+        // Année, catégorie et cours sont des données fixes du référentiel : elles ne
+        // s'ajoutent pas depuis la cascade. La complétion par l'enseignant commence au
+        // champ (domaine), qui lui appartient déjà par sa liaison cours_niveau.
+
+        // POST /api/ref/domaines
+        // Ajoute un champ (table domaine) pour un cours et une année. Un champ appartient
+        // à une liaison cours_niveau, propre à un enseignant : celle du compte connecté est
+        // utilisée, et créée si elle n'existe pas encore. Rejouable sur le nom du champ.
+        [HttpPost("domaines")]
+        public async Task<IActionResult> CreerDomaine([FromBody] CreerDomaineDto dto)
+        {
+            var nom = (dto.Nom ?? "").Trim();
+            if (nom.Length == 0) return BadRequest(new { message = "Le nom du champ est obligatoire." });
+
+            var userId = await GetUserId();
+            if (userId == null) return Unauthorized();
+
+            var cours = await _context.Cours.FirstOrDefaultAsync(c => c.CodeCours == dto.CodeCours);
+            if (cours == null) return BadRequest(new { message = "Cours introuvable." });
+
+            var niveau = await _context.Niveaus.FirstOrDefaultAsync(n => n.CodeNiveau == dto.CodeNiveau);
+            if (niveau == null) return BadRequest(new { message = "Année introuvable." });
+
+            var coursNiveau = await _context.CoursNiveaus.FirstOrDefaultAsync(
+                cn => cn.IdCoursFk == cours.IdCours
+                   && cn.IdNiveauFk == niveau.IdNiveau
+                   && cn.IdProfFk == userId.Value);
+
+            if (coursNiveau == null)
+            {
+                coursNiveau = new CoursNiveau
+                {
+                    IdCoursFk  = cours.IdCours,
+                    IdNiveauFk = niveau.IdNiveau,
+                    IdProfFk   = userId.Value
+                };
+                _context.CoursNiveaus.Add(coursNiveau);
+                try { await _context.SaveChangesAsync(); }
+                catch { return BadRequest(new { message = "Erreur lors de la création de la liaison cours/année." }); }
+            }
+
+            // Un champ de même nom déjà présent pour ce cours et cette année est réutilisé,
+            // quel que soit l'enseignant : c'est ce qui évite les doublons entre collègues.
+            var existant = await _context.Domaines.FirstOrDefaultAsync(
+                d => d.Nom.ToLower() == nom.ToLower()
+                  && d.IdCoursNiveauFkNavigation.IdCoursFk == cours.IdCours
+                  && d.IdCoursNiveauFkNavigation.IdNiveauFk == niveau.IdNiveau);
+
+            if (existant != null) return Ok(new { existant.IdDom, existant.Nom, Creee = false });
+
+            var domaine = new Domaine { Nom = nom, IdCoursNiveauFk = coursNiveau.IdCoursNiveau };
+            _context.Domaines.Add(domaine);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Erreur lors de la création du champ." }); }
+
+            return Ok(new { domaine.IdDom, domaine.Nom, Creee = true });
+        }
+
+        // POST /api/ref/sous-domaines
+        // Ajoute un domaine (table sous_domaine) sous un champ donné. Rejouable sur le nom.
+        [HttpPost("sous-domaines")]
+        public async Task<IActionResult> CreerSousDomaine([FromBody] CreerSousDomaineDto dto)
+        {
+            var nom = (dto.Nom ?? "").Trim();
+            if (nom.Length == 0) return BadRequest(new { message = "Le nom du domaine est obligatoire." });
+
+            if (!await _context.Domaines.AnyAsync(d => d.IdDom == dto.IdDomaine))
+                return BadRequest(new { message = "Champ introuvable." });
+
+            var existant = await _context.Sousdomaines.FirstOrDefaultAsync(
+                sd => sd.IdDomFk == dto.IdDomaine && sd.NomComp.ToLower() == nom.ToLower());
+
+            if (existant != null) return Ok(new { existant.IdSousDomaine, Creee = false });
+
+            var sousDomaine = new Sousdomaine { NomComp = nom, IdDomFk = dto.IdDomaine };
+            _context.Sousdomaines.Add(sousDomaine);
+            try { await _context.SaveChangesAsync(); }
+            catch { return BadRequest(new { message = "Erreur lors de la création du domaine." }); }
+
+            return Ok(new { sousDomaine.IdSousDomaine, Creee = true });
+        }
+
         // POST /api/ref/competences
         // Ajoute une compétence au référentiel. Si le nom existe déjà (à la casse et
         // aux espaces près), son identifiant est simplement renvoyé.
@@ -474,10 +580,25 @@ namespace seragenda.Controllers
             return Ok(new { Creee = true });
         }
 
-        // Corps attendu par les trois POST qui ajoutent une entrée nommée
+        // Corps attendu par les POST qui ajoutent une entrée simplement nommée
         public class CreerNommeDto
         {
             public string? Nom { get; set; }
+        }
+
+        // Corps attendu par POST /api/ref/domaines
+        public class CreerDomaineDto
+        {
+            public string? Nom { get; set; }
+            public string? CodeCours { get; set; }
+            public string? CodeNiveau { get; set; }
+        }
+
+        // Corps attendu par POST /api/ref/sous-domaines
+        public class CreerSousDomaineDto
+        {
+            public string? Nom { get; set; }
+            public int IdDomaine { get; set; }
         }
 
         // Corps attendu par POST /api/ref/visees
