@@ -164,6 +164,33 @@ namespace seragenda.Controllers
             return Ok(cours);
         }
 
+        // GET /api/ref/cours/by-niveau/{codeNiveau}
+        // Retourne tous les cours enseignés à un niveau donné, toutes catégories confondues.
+        //
+        // Le référentiel n'exposait les cours que catégorie par catégorie : pour dresser
+        // la liste complète d'une année, le client chargeait d'abord les catégories du
+        // niveau, puis leurs cours une catégorie à la fois, et fusionnait le tout. Une
+        // simple liste déroulante partait ainsi en une poignée de requêtes, là où la
+        // base répond en une seule jointure — et le dédoublonnage (un cours peut relever
+        // de plusieurs catégories) revient naturellement à SQL.
+        [HttpGet("cours/by-niveau/{codeNiveau}")]
+        public async Task<IActionResult> GetCoursByNiveau(string codeNiveau)
+        {
+            var moi = await GetUserId() ?? 0;
+
+            var cours = await _context.Cours
+                .Where(c => c.CoursNiveaus.Any(cn =>
+                    cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau &&
+                    // Même règle que les autres étapes de la cascade : une branche vide
+                    // reste cachée, sauf à son propre enseignant qui vient de la créer.
+                    (cn.Domaines.Any(d => d.Visees.Any()) || cn.IdProfFk == moi)))
+                .OrderBy(c => c.NomCours)
+                .Select(c => new { c.CodeCours, c.NomCours, c.CouleurAgenda })
+                .ToListAsync();
+
+            return Ok(cours);
+        }
+
         // GET /api/ref/domaines/{codeCours}/{codeNiveau}
         // Retourne les domaines pour une combinaison cours + niveau donnée
         [HttpGet("domaines/{codeCours}/{codeNiveau}")]
@@ -248,6 +275,34 @@ namespace seragenda.Controllers
                 .OrderBy(vm => vm.NomViseesMaitriser)
                 .Select(vm => new { vm.IdViseesMaitriser, vm.NomViseesMaitriser })
                 .ToList();
+
+            return Ok(list);
+        }
+
+        // GET /api/ref/visees-maitriser/par-visees?ids=1&ids=2
+        // Retourne les visées à maîtriser de plusieurs visées à la fois, fusionnées et
+        // dédoublonnées.
+        //
+        // La cascade permet de cocher plusieurs visées, et proposait alors les visées à
+        // maîtriser de toutes : le client interrogeait la variante à un identifiant une
+        // fois par visée cochée, puis fusionnait les réponses dans un dictionnaire.
+        // Cocher six visées coûtait six allers-retours pour une liste que la base sait
+        // rendre d'un coup.
+        [HttpGet("visees-maitriser/par-visees")]
+        public async Task<IActionResult> GetViseesMaitriserParVisees([FromQuery] int[] ids)
+        {
+            // Aucune visée cochée : la liste est vide, ce n'est pas une erreur
+            if (ids == null || ids.Length == 0) return Ok(Array.Empty<object>());
+
+            var list = await _context.Visees
+                .Where(v => ids.Contains(v.IdVisee))
+                // Une visée à maîtriser partagée par deux visées cochées ne doit
+                // apparaître qu'une fois dans la liste proposée
+                .SelectMany(v => v.IdViseesMaitriserFks)
+                .Distinct()
+                .OrderBy(vm => vm.NomViseesMaitriser)
+                .Select(vm => new { vm.IdViseesMaitriser, vm.NomViseesMaitriser })
+                .ToListAsync();
 
             return Ok(list);
         }
@@ -580,10 +635,162 @@ namespace seragenda.Controllers
             return Ok(new { Creee = true });
         }
 
+        // POST /api/ref/selection
+        // Complète le référentiel pour que la sélection de la cascade existe réellement
+        // en base : crée les visées manquantes du champ, puis les liens manquants vers
+        // les visées à maîtriser retenues.
+        //
+        // Le client menait cette séquence lui-même : une requête par visée à créer, une
+        // relecture pour récupérer les identifiants attribués, puis une requête par lien.
+        // Une coupure au milieu — onglet fermé, réseau perdu — laissait des visées créées
+        // sans aucun lien, que rien ne venait ensuite rattraper. Ici la séquence est
+        // atomique : au premier refus, rien n'est écrit.
+        //
+        // Comme les créations unitaires, l'appel est rejouable : une visée ou un lien
+        // déjà présent est réutilisé plutôt que dupliqué.
+        [HttpPost("selection")]
+        public async Task<IActionResult> EnregistrerSelection([FromBody] SelectionDto dto)
+        {
+            if (dto.IdDomaine <= 0 || dto.IdCompetence <= 0)
+                return BadRequest(new { message = "Champ et compétence sont obligatoires." });
+
+            var idNomVisees = (dto.IdNomVisees ?? new()).Where(id => id > 0).Distinct().ToList();
+            var idVms       = (dto.IdsViseesMaitriser ?? new()).Where(id => id > 0).Distinct().ToList();
+
+            if (idNomVisees.Count == 0)
+                return BadRequest(new { message = "Aucune visée retenue." });
+
+            int? idSousDomaine = dto.IdSousDomaine > 0 ? dto.IdSousDomaine : null;
+
+            // Les identifiants doivent exister, sinon la contrainte de clé étrangère
+            // renverrait une erreur illisible côté client.
+            if (!await _context.Domaines.AnyAsync(d => d.IdDom == dto.IdDomaine))
+                return BadRequest(new { message = "Champ introuvable." });
+            if (!await _context.Competences.AnyAsync(c => c.IdCompetence == dto.IdCompetence))
+                return BadRequest(new { message = "Compétence introuvable." });
+            if (idSousDomaine != null &&
+                !await _context.Sousdomaines.AnyAsync(sd => sd.IdSousDomaine == idSousDomaine))
+                return BadRequest(new { message = "Domaine introuvable." });
+
+            var nomViseesConnus = await _context.NomVisees
+                .Where(nv => idNomVisees.Contains(nv.IdNomVisee))
+                .Select(nv => nv.IdNomVisee)
+                .ToListAsync();
+
+            if (nomViseesConnus.Count != idNomVisees.Count)
+                return BadRequest(new { message = "Intitulé de visée introuvable." });
+
+            if (idVms.Count > 0)
+            {
+                var vmsConnues = await _context.ViseesMaitrisers
+                    .Where(vm => idVms.Contains(vm.IdViseesMaitriser))
+                    .Select(vm => vm.IdViseesMaitriser)
+                    .ToListAsync();
+
+                if (vmsConnues.Count != idVms.Count)
+                    return BadRequest(new { message = "Visée à maîtriser introuvable." });
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                // Visées déjà présentes pour ce champ, ce domaine et cette compétence
+                var existantes = await _context.Visees
+                    .Where(v => v.IdDomaineFk     == dto.IdDomaine
+                             && v.IdSousDomaineFk == idSousDomaine
+                             && v.IdCompFk        == dto.IdCompetence
+                             && idNomVisees.Contains(v.IdNomViseeFk))
+                    .ToListAsync();
+
+                var parNomVisee = existantes.ToDictionary(v => v.IdNomViseeFk);
+                int creees = 0;
+
+                // 1. Une visée par intitulé retenu qui n'en a pas encore pour ce champ
+                foreach (var idNomVisee in idNomVisees)
+                {
+                    if (parNomVisee.ContainsKey(idNomVisee)) continue;
+
+                    var visee = new Visee
+                    {
+                        IdDomaineFk     = dto.IdDomaine,
+                        IdSousDomaineFk = idSousDomaine,
+                        IdNomViseeFk    = idNomVisee,
+                        IdCompFk        = dto.IdCompetence
+                    };
+
+                    _context.Visees.Add(visee);
+                    parNomVisee[idNomVisee] = visee;
+                    creees++;
+                }
+
+                // Les identifiants attribués sont nécessaires pour créer les liens :
+                // c'est la relecture que le client devait faire en une requête séparée.
+                if (creees > 0) await _context.SaveChangesAsync();
+
+                // Identifiants dans l'ordre où le client a coché les intitulés
+                var idVisees = idNomVisees.Select(id => parNomVisee[id].IdVisee).ToList();
+
+                // 2. Les liens vers les visées à maîtriser retenues.
+                //    Seule la première visée cochée les porte, comme le faisait le client :
+                //    c'est aussi elle que la note référence. La règle vit désormais ici,
+                //    et l'appel reçoit la liste complète pour pouvoir évoluer sans que le
+                //    client ait à changer.
+                int liens = 0;
+
+                if (idVms.Count > 0 && idVisees.Count > 0)
+                {
+                    var porteuse = await _context.Visees
+                        .Include(v => v.IdViseesMaitriserFks)
+                        .FirstAsync(v => v.IdVisee == idVisees[0]);
+
+                    foreach (var idVm in idVms)
+                    {
+                        if (porteuse.IdViseesMaitriserFks.Any(vm => vm.IdViseesMaitriser == idVm)) continue;
+
+                        var vm = await _context.ViseesMaitrisers
+                            .FirstAsync(x => x.IdViseesMaitriser == idVm);
+
+                        porteuse.IdViseesMaitriserFks.Add(vm);
+                        liens++;
+                    }
+
+                    if (liens > 0) await _context.SaveChangesAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                return Ok(new { IdVisees = idVisees, ViseesCreees = creees, LiensCrees = liens });
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                var detail = ex.InnerException?.Message ?? ex.Message;
+                return StatusCode(500, new { message = $"Enregistrement refusé, rien n'a été créé : {detail}" });
+            }
+        }
+
         // Corps attendu par les POST qui ajoutent une entrée simplement nommée
         public class CreerNommeDto
         {
             public string? Nom { get; set; }
+        }
+
+        // Corps attendu par POST /api/ref/selection
+        public class SelectionDto
+        {
+            // Champ (domaine) et éventuel domaine (sous-domaine) auxquels rattacher les visées
+            public int IdDomaine { get; set; }
+            public int IdSousDomaine { get; set; }   // 0 = aucun
+
+            // Compétence commune aux visées retenues
+            public int IdCompetence { get; set; }
+
+            // Intitulés de visée cochés à l'étape 6, dans l'ordre d'affichage
+            public List<int> IdNomVisees { get; set; } = new();
+
+            // Visées à maîtriser cochées à l'étape 7
+            public List<int> IdsViseesMaitriser { get; set; } = new();
         }
 
         // Corps attendu par POST /api/ref/domaines

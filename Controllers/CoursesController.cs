@@ -64,23 +64,6 @@ namespace seragenda.Controllers
             // Retourne 401 si l'identité de l'utilisateur ne peut pas être résolue
             if (userId == null) return Unauthorized();
 
-            // Détermination du bit de jour de la semaine correspondant à la date demandée
-            var dayOfWeek = date.DayOfWeek;
-
-            // Correspondance de chaque jour de la semaine avec sa valeur de drapeau de masque de bits
-            // Ces valeurs correspondent à la convention utilisée lors de l'enregistrement des cours
-            int dayFlag = dayOfWeek switch
-            {
-                DayOfWeek.Monday    => 1,   // bit 0
-                DayOfWeek.Tuesday   => 2,   // bit 1
-                DayOfWeek.Wednesday => 4,   // bit 2
-                DayOfWeek.Thursday  => 8,   // bit 3
-                DayOfWeek.Friday    => 16,  // bit 4
-                DayOfWeek.Saturday  => 32,  // bit 5
-                DayOfWeek.Sunday    => 64,  // bit 6
-                _                   => 0   // Ne devrait jamais se produire (toutes les valeurs d'enum sont couvertes)
-            };
-
             // Récupération de tous les cours de cet utilisateur actifs à la date demandée
             // (c'est-à-dire que la date tombe dans la plage de dates semestrielles du cours)
             var courses = await _context.UserCourses
@@ -89,10 +72,71 @@ namespace seragenda.Controllers
 
             // Application du filtre de masque de bits du jour de la semaine en mémoire
             // (le ET binaire n'est pas facilement traduit en SQL dans tous les fournisseurs, donc on filtre après récupération)
-            var filtered = courses.Where(c => (c.DaysOfWeek & dayFlag) != 0).ToList();
+            var filtered = courses.Where(c => (c.DaysOfWeek & DrapeauJour(date)) != 0).ToList();
 
             return Ok(filtered);
         }
+
+        // GET /api/courses/range?start=...&end=...
+        // Retourne, pour chaque jour de la plage, les cours qui y ont lieu.
+        //
+        // La vue Trimestre demandait ses cours jour par jour : une cinquantaine de
+        // requêtes HTTP simultanées pour afficher une seule période, alors que les
+        // notes de la même période tenaient déjà en un seul appel. La règle de
+        // récurrence (masque de bits des jours + plage de dates du cours) reste ici,
+        // côté serveur, où elle est déjà écrite pour la variante par date.
+        [HttpGet("range")]
+        public async Task<IActionResult> GetCoursesForRange([FromQuery] DateTime start, [FromQuery] DateTime end)
+        {
+            var userId = await GetUserId();
+            if (userId == null) return Unauthorized();
+
+            if (end.Date < start.Date) return BadRequest("La date de fin precede la date de debut.");
+
+            // Même borne que pour les notes : une période scolaire complète passe,
+            // une plage aberrante est refusée.
+            if ((end.Date - start.Date).TotalDays > NotesController.MaxJoursPlage)
+                return BadRequest("Plage trop grande.");
+
+            // Un seul aller-retour en base : tous les cours qui chevauchent la plage
+            var courses = await _context.UserCourses
+                .Where(c => c.IdUserFk == userId && c.StartDate <= end.Date && c.EndDate >= start.Date)
+                .ToListAsync();
+
+            // Développement de la récurrence : chaque jour reçoit les cours dont le bit
+            // du jour de la semaine est armé et dont la plage de dates le couvre.
+            var jours = new List<object>();
+
+            for (var jour = start.Date; jour <= end.Date; jour = jour.AddDays(1))
+            {
+                int drapeau = DrapeauJour(jour);
+
+                jours.Add(new
+                {
+                    Date = jour,
+                    Courses = courses
+                        .Where(c => c.StartDate.Date <= jour && c.EndDate.Date >= jour
+                                 && (c.DaysOfWeek & drapeau) != 0)
+                        .ToList()
+                });
+            }
+
+            return Ok(jours);
+        }
+
+        // Valeur de masque de bits du jour de la semaine d'une date.
+        // Ces valeurs correspondent à la convention utilisée lors de l'enregistrement des cours.
+        private static int DrapeauJour(DateTime date) => date.DayOfWeek switch
+        {
+            DayOfWeek.Monday    => 1,   // bit 0
+            DayOfWeek.Tuesday   => 2,   // bit 1
+            DayOfWeek.Wednesday => 4,   // bit 2
+            DayOfWeek.Thursday  => 8,   // bit 3
+            DayOfWeek.Friday    => 16,  // bit 4
+            DayOfWeek.Saturday  => 32,  // bit 5
+            DayOfWeek.Sunday    => 64,  // bit 6
+            _                   => 0    // Ne devrait jamais se produire (toutes les valeurs d'enum sont couvertes)
+        };
 
         // GET /api/courses
         // Retourne toutes les entrées de cours créées par l'utilisateur courant (pour la configuration/gestion du calendrier)

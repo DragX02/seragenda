@@ -214,15 +214,32 @@ public class ScolaireScraper
     }
 
     // Sauvegarde un événement calendrier dans la base de données s'il n'existe pas déjà.
-    // La détection des doublons est basée sur la combinaison nom de l'événement et date de début.
-    // Si un enregistrement avec le même nom et la même date de début existe déjà, il est ignoré.
+    //
+    // La détection des doublons portait sur le nom exact et la date de début. Or la page
+    // source décrit régulièrement le même congé sous deux écritures — "Vacances d'automne
+    // (Toussaint)" et "Congé d'automne (Toussaint)" — qui passaient toutes les deux, à
+    // charge pour chaque client de les rapprocher ensuite à l'affichage.
+    //
+    // La comparaison se fait donc sur la clé du congé (voir CalendrierNormalisation) et
+    // sur la période exacte. Exiger des dates identiques est volontaire : deux congés
+    // distincts peuvent partager un mot-clé et se chevaucher — "Lundi de Pâques" tombe
+    // parfois pendant les "Vacances de printemps (Pâques)" — et rien ne justifie d'en
+    // perdre un à l'ingestion. Les doublons aux dates légèrement décalées restent écartés
+    // à l'affichage par le client.
+    //
     // evt : l'événement calendrier à insérer conditionnellement
     private async Task SauvegarderEnDB(CalendrierScolaire evt)
     {
-        // Vérification si un événement identique (même nom + même date de début) existe déjà
-        bool existe = await _context.CalendrierScolaires
-            .AnyAsync(e => e.NomEvenement == evt.NomEvenement
-                        && e.DateDebut    == evt.DateDebut);
+        // Candidats de même période : la clé, elle, ne se calcule pas en SQL
+        var memePeriode = await _context.CalendrierScolaires
+            .Where(e => e.DateDebut == evt.DateDebut && e.DateFin == evt.DateFin)
+            .Select(e => e.NomEvenement)
+            .ToListAsync();
+
+        var cle = CalendrierNormalisation.Cle(evt.NomEvenement);
+
+        // Un congé déjà présent sous une autre écriture n'est pas réinséré
+        bool existe = memePeriode.Any(nom => CalendrierNormalisation.Cle(nom) == cle);
 
         // Insertion uniquement si l'événement n'est pas déjà présent pour éviter les doublons
         if (!existe)
