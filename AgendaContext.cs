@@ -106,6 +106,12 @@ public partial class AgendaContext : DbContext
     // DbSet pour la table "user_conge" — corrections personnelles du calendrier des congés
     public virtual DbSet<UserConge> UserConges { get; set; }
 
+    // DbSet pour la table "lecon" — préparations de leçon de l'enseignant
+    public virtual DbSet<Lecon> Lecons { get; set; }
+
+    // DbSet pour la table "lecon_phase" — le déroulement d'une préparation, phase par phase
+    public virtual DbSet<LeconPhase> LeconPhases { get; set; }
+
     // DbSet pour la table "license" — enregistrements de clés de licence gérés par les administrateurs
     public virtual DbSet<License> Licenses { get; set; }
 
@@ -740,6 +746,49 @@ public partial class AgendaContext : DbContext
             entity.HasOne(d => d.User).WithMany()
                 .HasForeignKey(d => d.IdUserFk)
                 .HasConstraintName("user_conge_id_user_fk_fkey");
+        });
+
+        // --- Configuration de l'entité Lecon ---
+        modelBuilder.Entity<Lecon>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("lecon_pkey");
+            entity.ToTable("lecon");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.IdUserFk).HasColumnName("id_user_fk");
+            entity.Property(e => e.Titre).HasColumnName("titre").HasMaxLength(200);
+            entity.Property(e => e.Enseignant).HasColumnName("enseignant").HasMaxLength(150);
+            entity.Property(e => e.Duree).HasColumnName("duree").HasMaxLength(100);
+            entity.Property(e => e.NombreSeances).HasColumnName("nombre_seances").HasDefaultValue(1);
+            entity.Property(e => e.Niveaux).HasColumnName("niveaux").HasMaxLength(200);
+            entity.Property(e => e.Competences).HasColumnName("competences");
+            entity.Property(e => e.IdViseeFk).HasColumnName("id_visee_fk");
+            entity.Property(e => e.CreatedAt).HasColumnType("timestamp without time zone").HasColumnName("created_at");
+            entity.Property(e => e.ModifiedAt).HasColumnType("timestamp without time zone").HasColumnName("modified_at");
+
+            // FK vers Utilisateur ; pas de propriété de navigation côté "many"
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.IdUserFk)
+                .HasConstraintName("lecon_id_user_fk_fkey");
+        });
+
+        // --- Configuration de l'entité LeconPhase ---
+        modelBuilder.Entity<LeconPhase>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("lecon_phase_pkey");
+            entity.ToTable("lecon_phase");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.IdLeconFk).HasColumnName("id_lecon_fk");
+            entity.Property(e => e.Ordre).HasColumnName("ordre");
+            entity.Property(e => e.Intitule).HasColumnName("intitule");
+            entity.Property(e => e.Temps).HasColumnName("temps").HasMaxLength(50);
+
+            // Une phase n'existe que par sa leçon : la supprimer emporte ses phases
+            entity.HasOne(d => d.Lecon).WithMany(p => p.Phases)
+                .HasForeignKey(d => d.IdLeconFk)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("lecon_phase_id_lecon_fk_fkey");
         });
 
         // --- Configuration de l'entité License ---
