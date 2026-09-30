@@ -112,6 +112,8 @@ public partial class AgendaContext : DbContext
     // DbSet pour la table "lecon_phase" — le déroulement d'une préparation, phase par phase
     public virtual DbSet<LeconPhase> LeconPhases { get; set; }
 
+    public virtual DbSet<PageGarde> PagesGarde { get; set; }
+
     // DbSet pour la table "license" — enregistrements de clés de licence gérés par les administrateurs
     public virtual DbSet<License> Licenses { get; set; }
 
@@ -789,6 +791,24 @@ public partial class AgendaContext : DbContext
                 .HasForeignKey(d => d.IdLeconFk)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("lecon_phase_id_lecon_fk_fkey");
+        });
+
+        modelBuilder.Entity<PageGarde>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("page_garde_pkey");
+            entity.ToTable("page_garde");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            entity.Property(e => e.IdUserFk).HasColumnName("id_user_fk");
+            entity.Property(e => e.Nom).HasColumnName("nom").HasMaxLength(150);
+            entity.Property(e => e.Contenu).HasColumnName("contenu");
+            entity.Property(e => e.PourTous).HasColumnName("pour_tous");
+            entity.Property(e => e.CreatedAt).HasColumnType("timestamp without time zone").HasColumnName("created_at");
+            entity.Property(e => e.ModifiedAt).HasColumnType("timestamp without time zone").HasColumnName("modified_at");
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.IdUserFk)
+                .HasConstraintName("page_garde_id_user_fk_fkey");
         });
 
         // --- Configuration de l'entité License ---
