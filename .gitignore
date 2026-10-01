@@ -12,3 +12,6 @@ appsettings.*.local.json
 
 ## Build output
 publish/
+
+## Images importees par les utilisateurs (dev)
+ImagesPerso/
