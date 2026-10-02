@@ -36,6 +36,8 @@ public class UserNote
     // Longueur maximale imposée côté serveur : 2000 caractères.
     public string Content { get; set; } = string.Empty;
 
+    public string? Titre { get; set; }
+
     // Horodatage UTC de la première création de cette note
     public DateTime CreatedAt { get; set; }
 

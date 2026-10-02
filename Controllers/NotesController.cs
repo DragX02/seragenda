@@ -150,7 +150,8 @@ namespace seragenda.Controllers
 
                 // Mise à jour uniquement des champs de contenu et de timing ; l'horodatage de création est immuable
                 existing.Content       = note.Content;
-                existing.Hour          = note.Hour;
+                existing.Titre         = note.Titre;
+                existing.Hour        = note.Hour;
                 existing.EndHour       = note.EndHour;
                 existing.Minute        = note.Minute;
                 existing.EndMinute     = note.EndMinute;
@@ -236,6 +237,16 @@ namespace seragenda.Controllers
             else
             {
                 note.ViseeContexte = null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(note.Titre))
+            {
+                var titre = System.Text.RegularExpressions.Regex.Replace(note.Titre, "<[^>]*>", string.Empty).Trim();
+                note.Titre = titre.Length > 150 ? titre[..150] : (titre.Length == 0 ? null : titre);
+            }
+            else
+            {
+                note.Titre = null;
             }
 
             return null;
@@ -348,6 +359,7 @@ namespace seragenda.Controllers
                         EndHour       = source.EndHour,
                         EndMinute     = source.EndMinute,
                         Content       = contenu,
+                        Titre         = source.Titre,
                         IdViseeFk     = source.IdViseeFk,
                         ViseeContexte = source.ViseeContexte,
                         CreatedAt     = DateTime.UtcNow,

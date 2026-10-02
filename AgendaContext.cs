@@ -714,6 +714,7 @@ public partial class AgendaContext : DbContext
             entity.Property(e => e.EndMinute).HasColumnName("end_minute").HasDefaultValue(0);
             // Colonne texte pour le contenu en texte brut de la note
             entity.Property(e => e.Content).HasColumnName("content");
+            entity.Property(e => e.Titre).HasMaxLength(150).HasColumnName("titre");
             entity.Property(e => e.CreatedAt).HasColumnType("timestamp without time zone").HasColumnName("created_at");
             entity.Property(e => e.ModifiedAt).HasColumnType("timestamp without time zone").HasColumnName("modified_at");
             // Visée du référentiel rattachée à la note (nullable)
