@@ -4,20 +4,6 @@ using System.Text.Json;
 
 namespace seragendaTest;
 
-/// <summary>
-/// Tests d'intégration pour <see cref="seragenda.Controllers.HealthController"/>.
-///
-/// Utilise <see cref="WebApplicationFactory{TEntryPoint}"/> pour démarrer un serveur
-/// en mémoire sans base de données ni réseau réel.
-///
-/// Couvre :
-///   - GET /api/health → 200 OK.
-///   - Corps JSON contient les champs status, timestamp, server, version.
-///   - Le champ status vaut "online".
-///   - Le champ server vaut "AgendaProf API".
-///   - Le champ version vaut "1.0.0".
-///   - Le champ timestamp est une date/heure UTC récente.
-/// </summary>
 public class HealthControllerTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly HttpClient _client;
@@ -27,13 +13,6 @@ public class HealthControllerTests : IClassFixture<WebApplicationFactory<Program
         _client = factory.CreateClient();
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Statut HTTP
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// GET /api/health doit retourner 200 OK.
-    /// </summary>
     [Fact]
     public async Task Get_ReturnsOk()
     {
@@ -42,13 +21,6 @@ public class HealthControllerTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Présence des champs JSON
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// La réponse doit contenir les quatre champs attendus.
-    /// </summary>
     [Fact]
     public async Task Get_ResponseContainsRequiredFields()
     {
@@ -61,13 +33,6 @@ public class HealthControllerTests : IClassFixture<WebApplicationFactory<Program
         Assert.True(json.TryGetProperty("version",   out _), "Champ 'version' manquant.");
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // Valeurs attendues
-    // ─────────────────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Le champ status doit valoir "online".
-    /// </summary>
     [Fact]
     public async Task Get_StatusIsOnline()
     {
@@ -77,9 +42,6 @@ public class HealthControllerTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal("online", json.GetProperty("status").GetString());
     }
 
-    /// <summary>
-    /// Le champ server doit valoir "AgendaProf API".
-    /// </summary>
     [Fact]
     public async Task Get_ServerNameIsAgendaProfApi()
     {
@@ -89,9 +51,6 @@ public class HealthControllerTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal("AgendaProf API", json.GetProperty("server").GetString());
     }
 
-    /// <summary>
-    /// Le champ version doit valoir "1.0.0".
-    /// </summary>
     [Fact]
     public async Task Get_VersionIs100()
     {
@@ -101,9 +60,6 @@ public class HealthControllerTests : IClassFixture<WebApplicationFactory<Program
         Assert.Equal("1.0.0", json.GetProperty("version").GetString());
     }
 
-    /// <summary>
-    /// Le champ timestamp doit être une date/heure UTC dans les 60 secondes précédant l'appel.
-    /// </summary>
     [Fact]
     public async Task Get_TimestampIsRecentUtc()
     {
@@ -117,10 +73,6 @@ public class HealthControllerTests : IClassFixture<WebApplicationFactory<Program
         Assert.True(ts >= before && ts <= after,
             $"timestamp {ts:O} doit être compris entre {before:O} et {after:O}.");
     }
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // Helper
-    // ─────────────────────────────────────────────────────────────────────────
 
     private static async Task<JsonElement> ParseJsonAsync(HttpResponseMessage response)
     {

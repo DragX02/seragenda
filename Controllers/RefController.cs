@@ -1,50 +1,27 @@
-// Importation des attributs d'autorisation ASP.NET Core
 using Microsoft.AspNetCore.Authorization;
-// Importation des types de base pour les contrôleurs MVC/API et les helpers de résultat
 using Microsoft.AspNetCore.Mvc;
-// Importation d'Entity Framework Core pour les requêtes asynchrones en base de données
 using Microsoft.EntityFrameworkCore;
-// Importation des entités du référentiel (création de visées et de liens)
 using seragenda.Models;
-// Importation des claims pour identifier l'enseignant connecté
 using System.Security.Claims;
 
 namespace seragenda.Controllers
 {
-    // Les routes de ce contrôleur sont préfixées par /api/ref (chemin explicite, sans le jeton [controller])
     [Route("api/ref")]
-    // Indique que cette classe est un contrôleur d'API
     [ApiController]
-    // Tous les points de terminaison nécessitent un token JWT valide
     [Authorize]
-    // Fournit des données de référence en lecture seule utilisées pour alimenter les listes de sélection en cascade côté client.
-    // Expose quatre lookups liés : catégories, cours (filtrés par catégorie), niveaux et domaines.
-    // Utilisation prévue :
-    //   1. Charger toutes les catégories → l'utilisateur en choisit une.
-    //   2. Charger les cours de la catégorie sélectionnée → l'utilisateur en choisit un.
-    //   3. Charger les niveaux du cours sélectionné → l'utilisateur en choisit un.
-    //   4. Charger les domaines du cours + niveau sélectionnés → l'utilisateur en choisit un.
     public class RefController : ControllerBase
     {
-        // Contexte de base de données Entity Framework pour interroger les tables de référence
         private readonly AgendaContext _context;
 
-        // Constructeur — reçoit le contexte de base de données par injection de dépendances.
-        // Paramètre context : le contexte de base de données EF Core
         public RefController(AgendaContext context)
         {
             _context = context;
         }
 
-        // GET /api/ref/categories
-        // Retourne toutes les catégories de matières, triées par leur ordre d'affichage
         [HttpGet("categories")]
-        // Récupère tous les enregistrements de catégories depuis la table categorie_cours.
-        // Retourne l'identifiant, le nom et l'ordre de tri pour chaque catégorie.
         public async Task<IActionResult> GetCategories()
         {
             var categories = await _context.CategorieCours
-                // Trier par la colonne d'ordre explicite pour que la liste déroulante corresponde à la séquence prévue
                 .OrderBy(c => c.Ordre)
                 .Select(c => new { c.IdCat, c.NomCat, c.Ordre })
                 .ToListAsync();
@@ -52,70 +29,40 @@ namespace seragenda.Controllers
             return Ok(categories);
         }
 
-        // GET /api/ref/cours/{idCat}
-        // Retourne tous les cours appartenant à une catégorie spécifique, triés alphabétiquement
         [HttpGet("cours/{idCat:int}")]
-        // Récupère tous les enregistrements de cours (matières) appartenant à une catégorie donnée.
-        // Retourne uniquement les champs nécessaires à l'affichage et aux lookups suivants :
-        // le code unique, le nom d'affichage et la couleur de l'agenda.
-        // Paramètre idCat : la clé primaire de la catégorie à filtrer
         public async Task<IActionResult> GetCours(int idCat)
         {
             var cours = await _context.Cours
-                // Filtrer uniquement les matières appartenant à la catégorie demandée
                 .Where(c => c.IdCatFk == idCat)
-                // Trier alphabétiquement pour que la liste déroulante soit ordonnée
                 .OrderBy(c => c.NomCours)
-                // Projeter uniquement les colonnes dont le client a besoin ; évite la sur-récupération
                 .Select(c => new { c.CodeCours, c.NomCours, c.CouleurAgenda })
                 .ToListAsync();
 
             return Ok(cours);
         }
 
-        // GET /api/ref/niveaux/{codeCours}
-        // Retourne les niveaux d'enseignement distincts disponibles pour un code de cours donné
         [HttpGet("niveaux/{codeCours}")]
-        // Récupère tous les niveaux scolaires (années) associés à un cours spécifique.
-        // La liste des niveaux est dérivée de la table de liaison many-to-many CoursNiveau.
-        // Les doublons sont supprimés avec Distinct() au cas où plusieurs professeurs enseignent au même niveau.
-        // Paramètre codeCours : le code unique du cours (ex. : "MATH", "FR")
         public async Task<IActionResult> GetNiveaux(string codeCours)
         {
             var niveaux = await _context.CoursNiveaus
-                // Filtrer les enregistrements de liaison où le cours associé correspond au code demandé
                 .Where(cn => cn.IdCoursFkNavigation.CodeCours == codeCours)
-                // Naviguer à travers la table de liaison vers l'entité Niveau
                 .Select(cn => cn.IdNiveauFkNavigation)
-                // Supprimer les doublons générés par plusieurs professeurs enseignant au même niveau
                 .Distinct()
-                // Trier par le code de niveau pour un ordre cohérent
                 .OrderBy(n => n.CodeNiveau)
-                // Projeter uniquement les champs nécessaires à l'affichage et aux lookups ultérieurs
                 .Select(n => new { n.CodeNiveau, n.NomNiveau })
                 .ToListAsync();
 
             return Ok(niveaux);
         }
 
-        // GET /api/ref/niveaux
-        // Retourne tous les niveaux d'enseignement qui possèdent au moins un domaine
-        // renseigné (avec des visées). Alimente la PREMIÈRE liste déroulante de la
-        // cascade réordonnée où l'année (niveau) est choisie en premier.
         [HttpGet("niveaux")]
         public async Task<IActionResult> GetNiveauxTous()
         {
             var moi = await GetUserId() ?? 0;
 
             var niveaux = await _context.CoursNiveaus
-                // Ne garder que les niveaux dont au moins une combinaison cours-niveau
-                // possède des domaines contenant des visées (évite les branches vides).
-                // Les liaisons de l'enseignant connecté sont gardées même sans visée :
-                // sans cela, ce qu'il vient de créer n'apparaîtrait jamais.
                 .Where(cn => cn.Domaines.Any(d => d.Visees.Any()) || cn.IdProfFk == moi)
-                // Naviguer vers l'entité Niveau à travers la table de liaison
                 .Select(cn => cn.IdNiveauFkNavigation)
-                // Supprimer les doublons (plusieurs cours/professeurs partagent un même niveau)
                 .Distinct()
                 .OrderBy(n => n.CodeNiveau)
                 .Select(n => new { n.CodeNiveau, n.NomNiveau })
@@ -124,10 +71,6 @@ namespace seragenda.Controllers
             return Ok(niveaux);
         }
 
-        // GET /api/ref/categories/by-niveau/{codeNiveau}
-        // Retourne les catégories possédant au moins un cours enseigné au niveau donné
-        // (et dont la combinaison cours-niveau contient des domaines avec visées).
-        // Deuxième étape de la cascade réordonnée : Année → Catégorie.
         [HttpGet("categories/by-niveau/{codeNiveau}")]
         public async Task<IActionResult> GetCategoriesByNiveau(string codeNiveau)
         {
@@ -144,9 +87,6 @@ namespace seragenda.Controllers
             return Ok(categories);
         }
 
-        // GET /api/ref/cours/by-cat-niveau/{idCat}/{codeNiveau}
-        // Retourne les cours d'une catégorie enseignés à un niveau donné (avec visées).
-        // Troisième étape de la cascade réordonnée : Année → Catégorie → Cours.
         [HttpGet("cours/by-cat-niveau/{idCat:int}/{codeNiveau}")]
         public async Task<IActionResult> GetCoursByCatNiveau(int idCat, string codeNiveau)
         {
@@ -164,15 +104,6 @@ namespace seragenda.Controllers
             return Ok(cours);
         }
 
-        // GET /api/ref/cours/by-niveau/{codeNiveau}
-        // Retourne tous les cours enseignés à un niveau donné, toutes catégories confondues.
-        //
-        // Le référentiel n'exposait les cours que catégorie par catégorie : pour dresser
-        // la liste complète d'une année, le client chargeait d'abord les catégories du
-        // niveau, puis leurs cours une catégorie à la fois, et fusionnait le tout. Une
-        // simple liste déroulante partait ainsi en une poignée de requêtes, là où la
-        // base répond en une seule jointure — et le dédoublonnage (un cours peut relever
-        // de plusieurs catégories) revient naturellement à SQL.
         [HttpGet("cours/by-niveau/{codeNiveau}")]
         public async Task<IActionResult> GetCoursByNiveau(string codeNiveau)
         {
@@ -181,8 +112,6 @@ namespace seragenda.Controllers
             var cours = await _context.Cours
                 .Where(c => c.CoursNiveaus.Any(cn =>
                     cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau &&
-                    // Même règle que les autres étapes de la cascade : une branche vide
-                    // reste cachée, sauf à son propre enseignant qui vient de la créer.
                     (cn.Domaines.Any(d => d.Visees.Any()) || cn.IdProfFk == moi)))
                 .OrderBy(c => c.NomCours)
                 .Select(c => new { c.CodeCours, c.NomCours, c.CouleurAgenda })
@@ -191,12 +120,7 @@ namespace seragenda.Controllers
             return Ok(cours);
         }
 
-        // GET /api/ref/domaines/{codeCours}/{codeNiveau}
-        // Retourne les domaines pour une combinaison cours + niveau donnée
         [HttpGet("domaines/{codeCours}/{codeNiveau}")]
-        // Récupère tous les domaines pédagogiques pour une combinaison cours et niveau spécifique.
-        // Paramètre codeCours : le code unique du cours
-        // Paramètre codeNiveau : le code unique du niveau scolaire
         public async Task<IActionResult> GetDomaines(string codeCours, string codeNiveau)
         {
             var moi = await GetUserId() ?? 0;
@@ -206,8 +130,6 @@ namespace seragenda.Controllers
                     cn.IdCoursFkNavigation.CodeCours   == codeCours &&
                     cn.IdNiveauFkNavigation.CodeNiveau == codeNiveau)
                 .SelectMany(cn => cn.Domaines)
-                // Un champ sans visée reste proposé à son propre enseignant : c'est le
-                // point de départ obligé quand il vient de le créer.
                 .Where(d => d.Visees.Any() || d.IdCoursNiveauFkNavigation.IdProfFk == moi)
                 .OrderBy(d => d.Nom)
                 .Select(d => new { d.IdDom, d.Nom })
@@ -216,8 +138,6 @@ namespace seragenda.Controllers
             return Ok(domaines);
         }
 
-        // GET /api/ref/sous-domaines/{idDomaine}
-        // Retourne les sous-domaines rattachés à un domaine donné
         [HttpGet("sous-domaines/{idDomaine:int}")]
         public async Task<IActionResult> GetSousDomaines(int idDomaine)
         {
@@ -230,8 +150,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // GET /api/ref/visees/{idDomaine}?sousDomaine={idSousDomaine}
-        // Retourne les visées d'un domaine, filtrées optionnellement par sous-domaine
         [HttpGet("visees/{idDomaine:int}")]
         public async Task<IActionResult> GetVisees(int idDomaine, [FromQuery] int? sousDomaine)
         {
@@ -260,8 +178,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // GET /api/ref/visees-maitriser/{idVisee}
-        // Retourne les visées à maîtriser liées à une visée donnée (via la table de jointure many-to-many)
         [HttpGet("visees-maitriser/{idVisee:int}")]
         public async Task<IActionResult> GetViseesMaitriser(int idVisee)
         {
@@ -279,25 +195,13 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // GET /api/ref/visees-maitriser/par-visees?ids=1&ids=2
-        // Retourne les visées à maîtriser de plusieurs visées à la fois, fusionnées et
-        // dédoublonnées.
-        //
-        // La cascade permet de cocher plusieurs visées, et proposait alors les visées à
-        // maîtriser de toutes : le client interrogeait la variante à un identifiant une
-        // fois par visée cochée, puis fusionnait les réponses dans un dictionnaire.
-        // Cocher six visées coûtait six allers-retours pour une liste que la base sait
-        // rendre d'un coup.
         [HttpGet("visees-maitriser/par-visees")]
         public async Task<IActionResult> GetViseesMaitriserParVisees([FromQuery] int[] ids)
         {
-            // Aucune visée cochée : la liste est vide, ce n'est pas une erreur
             if (ids == null || ids.Length == 0) return Ok(Array.Empty<object>());
 
             var list = await _context.Visees
                 .Where(v => ids.Contains(v.IdVisee))
-                // Une visée à maîtriser partagée par deux visées cochées ne doit
-                // apparaître qu'une fois dans la liste proposée
                 .SelectMany(v => v.IdViseesMaitriserFks)
                 .Distinct()
                 .OrderBy(vm => vm.NomViseesMaitriser)
@@ -307,10 +211,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // GET /api/ref/appartenir/{idVm}?idVisee={idVisee}
-        // Retourne les entrées appartenir_visee_aptitude d'une visée à maîtriser.
-        // Si aucune entrée n'existe et qu'une visée est fournie, retourne la compétence
-        // de cette visée comme "Attendus" de repli (IdAppartenirViseeAptitude négatif = -IdCompetence).
         [HttpGet("appartenir/{idVm:int}")]
         public async Task<IActionResult> GetAppartenir(int idVm, [FromQuery] int? idVisee)
         {
@@ -329,8 +229,6 @@ namespace seragenda.Controllers
                 })
                 .ToListAsync();
 
-            // Repli : si aucune entrée appartenir et qu'une visée est connue,
-            // on retourne la compétence (Attendus) de cette visée comme aptitude
             if (!list.Any() && idVisee.HasValue)
             {
                 var visee = await _context.Visees
@@ -342,7 +240,7 @@ namespace seragenda.Controllers
                     var comp = visee.IdCompFkNavigation;
                     return Ok(new[] { new
                     {
-                        IdAppartenirViseeAptitude = -comp.IdCompetence,   // négatif = entrée de repli
+                        IdAppartenirViseeAptitude = -comp.IdCompetence,
                         IdAptitude                = (int?)null,
                         NomAptitude               = (string?)null,
                         IdCompetenceFk            = comp.IdCompetence,
@@ -354,19 +252,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // TABLES COMPLÈTES ET COMPLÉMENT DU RÉFÉRENTIEL
-        //
-        // Le référentiel est incomplet : un champ (domaine) n'a pas toujours
-        // toutes les compétences ou visées dont l'enseignant a besoin. Ces
-        // points de terminaison lui donnent les tables entières, puis créent
-        // les liens manquants pour que sa sélection existe vraiment en base.
-        // Ils sont ouverts à tout utilisateur authentifié, contrairement à
-        // api/admin-data qui reste réservé au rôle ADMIN.
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/ref/competences
-        // Retourne toutes les compétences de la table, triées par nom
         [HttpGet("competences")]
         public async Task<IActionResult> GetToutesCompetences()
         {
@@ -378,8 +263,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // GET /api/ref/nom-visees
-        // Retourne tous les intitulés de visée de la table, triés par nom
         [HttpGet("nom-visees")]
         public async Task<IActionResult> GetTousNomVisees()
         {
@@ -391,9 +274,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // GET /api/ref/visees-maitriser
-        // Retourne toutes les visées à maîtriser de la table, triées par nom.
-        // (La variante avec identifiant ne rend que celles liées à une visée.)
         [HttpGet("visees-maitriser")]
         public async Task<IActionResult> GetToutesViseesMaitriser()
         {
@@ -405,8 +285,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // Clé primaire de l'utilisateur connecté, résolue depuis le claim Name (son email).
-        // Null si le claim est absent ou si l'utilisateur est introuvable.
         private async Task<int?> GetUserId()
         {
             var email = User.FindFirst(ClaimTypes.Name)?.Value;
@@ -415,14 +293,6 @@ namespace seragenda.Controllers
             return user?.IdUser;
         }
 
-        // Année, catégorie et cours sont des données fixes du référentiel : elles ne
-        // s'ajoutent pas depuis la cascade. La complétion par l'enseignant commence au
-        // champ (domaine), qui lui appartient déjà par sa liaison cours_niveau.
-
-        // POST /api/ref/domaines
-        // Ajoute un champ (table domaine) pour un cours et une année. Un champ appartient
-        // à une liaison cours_niveau, propre à un enseignant : celle du compte connecté est
-        // utilisée, et créée si elle n'existe pas encore. Rejouable sur le nom du champ.
         [HttpPost("domaines")]
         public async Task<IActionResult> CreerDomaine([FromBody] CreerDomaineDto dto)
         {
@@ -456,8 +326,6 @@ namespace seragenda.Controllers
                 catch { return BadRequest(new { message = "Erreur lors de la création de la liaison cours/année." }); }
             }
 
-            // Un champ de même nom déjà présent pour ce cours et cette année est réutilisé,
-            // quel que soit l'enseignant : c'est ce qui évite les doublons entre collègues.
             var existant = await _context.Domaines.FirstOrDefaultAsync(
                 d => d.Nom.ToLower() == nom.ToLower()
                   && d.IdCoursNiveauFkNavigation.IdCoursFk == cours.IdCours
@@ -473,8 +341,6 @@ namespace seragenda.Controllers
             return Ok(new { domaine.IdDom, domaine.Nom, Creee = true });
         }
 
-        // POST /api/ref/sous-domaines
-        // Ajoute un domaine (table sous_domaine) sous un champ donné. Rejouable sur le nom.
         [HttpPost("sous-domaines")]
         public async Task<IActionResult> CreerSousDomaine([FromBody] CreerSousDomaineDto dto)
         {
@@ -497,9 +363,6 @@ namespace seragenda.Controllers
             return Ok(new { sousDomaine.IdSousDomaine, Creee = true });
         }
 
-        // POST /api/ref/competences
-        // Ajoute une compétence au référentiel. Si le nom existe déjà (à la casse et
-        // aux espaces près), son identifiant est simplement renvoyé.
         [HttpPost("competences")]
         public async Task<IActionResult> CreerCompetence([FromBody] CreerNommeDto dto)
         {
@@ -519,8 +382,6 @@ namespace seragenda.Controllers
             return Ok(new { competence.IdCompetence, Creee = true });
         }
 
-        // POST /api/ref/nom-visees
-        // Ajoute un intitulé de visée au référentiel. Rejouable, comme ci-dessus.
         [HttpPost("nom-visees")]
         public async Task<IActionResult> CreerNomVisee([FromBody] CreerNommeDto dto)
         {
@@ -540,8 +401,6 @@ namespace seragenda.Controllers
             return Ok(new { nomVisee.IdNomVisee, Creee = true });
         }
 
-        // POST /api/ref/visees-maitriser
-        // Ajoute une visée à maîtriser au référentiel. Rejouable, comme ci-dessus.
         [HttpPost("visees-maitriser")]
         public async Task<IActionResult> CreerViseeMaitriser([FromBody] CreerNommeDto dto)
         {
@@ -561,10 +420,6 @@ namespace seragenda.Controllers
             return Ok(new { vm2.IdViseesMaitriser, Creee = true });
         }
 
-        // POST /api/ref/visees
-        // Rattache un intitulé de visée et une compétence à un champ (domaine) et,
-        // éventuellement, à un domaine (sous-domaine). Si la visée existe déjà, son
-        // identifiant est simplement renvoyé : l'appel est donc rejouable sans risque.
         [HttpPost("visees")]
         public async Task<IActionResult> CreerVisee([FromBody] CreerViseeDto dto)
         {
@@ -573,8 +428,6 @@ namespace seragenda.Controllers
 
             int? idSousDomaine = dto.IdSousDomaine > 0 ? dto.IdSousDomaine : null;
 
-            // Les identifiants doivent exister, sinon la contrainte de clé étrangère
-            // renverrait une erreur illisible côté client.
             if (!await _context.Domaines.AnyAsync(d => d.IdDom == dto.IdDomaine))
                 return BadRequest(new { message = "Champ introuvable." });
             if (!await _context.NomVisees.AnyAsync(nv => nv.IdNomVisee == dto.IdNomVisee))
@@ -608,9 +461,6 @@ namespace seragenda.Controllers
             return Ok(new { visee.IdVisee, Creee = true });
         }
 
-        // POST /api/ref/lien-visee-maitrise
-        // Relie une visée à une visée à maîtriser (table de jointure lien_visee_maitrise).
-        // Rejouable : si le lien existe déjà, la requête réussit sans rien changer.
         [HttpPost("lien-visee-maitrise")]
         public async Task<IActionResult> CreerLienViseeMaitrise([FromBody] CreerLienDto dto)
         {
@@ -635,19 +485,6 @@ namespace seragenda.Controllers
             return Ok(new { Creee = true });
         }
 
-        // POST /api/ref/selection
-        // Complète le référentiel pour que la sélection de la cascade existe réellement
-        // en base : crée les visées manquantes du champ, puis les liens manquants vers
-        // les visées à maîtriser retenues.
-        //
-        // Le client menait cette séquence lui-même : une requête par visée à créer, une
-        // relecture pour récupérer les identifiants attribués, puis une requête par lien.
-        // Une coupure au milieu — onglet fermé, réseau perdu — laissait des visées créées
-        // sans aucun lien, que rien ne venait ensuite rattraper. Ici la séquence est
-        // atomique : au premier refus, rien n'est écrit.
-        //
-        // Comme les créations unitaires, l'appel est rejouable : une visée ou un lien
-        // déjà présent est réutilisé plutôt que dupliqué.
         [HttpPost("selection")]
         public async Task<IActionResult> EnregistrerSelection([FromBody] SelectionDto dto)
         {
@@ -662,8 +499,6 @@ namespace seragenda.Controllers
 
             int? idSousDomaine = dto.IdSousDomaine > 0 ? dto.IdSousDomaine : null;
 
-            // Les identifiants doivent exister, sinon la contrainte de clé étrangère
-            // renverrait une erreur illisible côté client.
             if (!await _context.Domaines.AnyAsync(d => d.IdDom == dto.IdDomaine))
                 return BadRequest(new { message = "Champ introuvable." });
             if (!await _context.Competences.AnyAsync(c => c.IdCompetence == dto.IdCompetence))
@@ -695,7 +530,6 @@ namespace seragenda.Controllers
 
             try
             {
-                // Visées déjà présentes pour ce champ, ce domaine et cette compétence
                 var existantes = await _context.Visees
                     .Where(v => v.IdDomaineFk     == dto.IdDomaine
                              && v.IdSousDomaineFk == idSousDomaine
@@ -706,7 +540,6 @@ namespace seragenda.Controllers
                 var parNomVisee = existantes.ToDictionary(v => v.IdNomViseeFk);
                 int creees = 0;
 
-                // 1. Une visée par intitulé retenu qui n'en a pas encore pour ce champ
                 foreach (var idNomVisee in idNomVisees)
                 {
                     if (parNomVisee.ContainsKey(idNomVisee)) continue;
@@ -724,18 +557,10 @@ namespace seragenda.Controllers
                     creees++;
                 }
 
-                // Les identifiants attribués sont nécessaires pour créer les liens :
-                // c'est la relecture que le client devait faire en une requête séparée.
                 if (creees > 0) await _context.SaveChangesAsync();
 
-                // Identifiants dans l'ordre où le client a coché les intitulés
                 var idVisees = idNomVisees.Select(id => parNomVisee[id].IdVisee).ToList();
 
-                // 2. Les liens vers les visées à maîtriser retenues.
-                //    Seule la première visée cochée les porte, comme le faisait le client :
-                //    c'est aussi elle que la note référence. La règle vit désormais ici,
-                //    et l'appel reçoit la liste complète pour pouvoir évoluer sans que le
-                //    client ait à changer.
                 int liens = 0;
 
                 if (idVms.Count > 0 && idVisees.Count > 0)
@@ -770,30 +595,23 @@ namespace seragenda.Controllers
             }
         }
 
-        // Corps attendu par les POST qui ajoutent une entrée simplement nommée
         public class CreerNommeDto
         {
             public string? Nom { get; set; }
         }
 
-        // Corps attendu par POST /api/ref/selection
         public class SelectionDto
         {
-            // Champ (domaine) et éventuel domaine (sous-domaine) auxquels rattacher les visées
             public int IdDomaine { get; set; }
-            public int IdSousDomaine { get; set; }   // 0 = aucun
+            public int IdSousDomaine { get; set; }
 
-            // Compétence commune aux visées retenues
             public int IdCompetence { get; set; }
 
-            // Intitulés de visée cochés à l'étape 6, dans l'ordre d'affichage
             public List<int> IdNomVisees { get; set; } = new();
 
-            // Visées à maîtriser cochées à l'étape 7
             public List<int> IdsViseesMaitriser { get; set; } = new();
         }
 
-        // Corps attendu par POST /api/ref/domaines
         public class CreerDomaineDto
         {
             public string? Nom { get; set; }
@@ -801,23 +619,20 @@ namespace seragenda.Controllers
             public string? CodeNiveau { get; set; }
         }
 
-        // Corps attendu par POST /api/ref/sous-domaines
         public class CreerSousDomaineDto
         {
             public string? Nom { get; set; }
             public int IdDomaine { get; set; }
         }
 
-        // Corps attendu par POST /api/ref/visees
         public class CreerViseeDto
         {
             public int IdDomaine { get; set; }
-            public int IdSousDomaine { get; set; }   // 0 = aucun
+            public int IdSousDomaine { get; set; }
             public int IdNomVisee { get; set; }
             public int IdCompetence { get; set; }
         }
 
-        // Corps attendu par POST /api/ref/lien-visee-maitrise
         public class CreerLienDto
         {
             public int IdVisee { get; set; }

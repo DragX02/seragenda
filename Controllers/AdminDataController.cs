@@ -1,41 +1,22 @@
-// Importation des attributs d'autorisation ASP.NET Core
 using Microsoft.AspNetCore.Authorization;
-// Importation des types de base pour les contrôleurs MVC/API
 using Microsoft.AspNetCore.Mvc;
-// Importation d'Entity Framework Core pour les requêtes asynchrones
 using Microsoft.EntityFrameworkCore;
-// Importation des modèles d'entités du projet
 using seragenda.Models;
 
 namespace seragenda.Controllers
 {
-    // Marque cette classe comme contrôleur API avec liaison automatique du modèle
     [ApiController]
-    // Toutes les routes sont préfixées par /api/admin-data
     [Route("api/admin-data")]
-    // Restreint tous les endpoints aux utilisateurs ayant le rôle ADMIN
     [Authorize(Roles = "ADMIN")]
-    // Contrôleur d'administration pour la gestion des données pédagogiques de référence.
-    // Fournit des opérations CRUD pour : catégories, cours, niveaux, liaisons cours-niveau,
-    // domaines, compétences, aptitudes, noms de visées, visées à maîtriser et sous-domaines.
     public class AdminDataController : ControllerBase
     {
-        // Contexte EF Core pour accéder à toutes les tables de la base de données
         private readonly AgendaContext _context;
 
-        // Constructeur — reçoit le contexte de base de données par injection de dépendances.
-        // context : le contexte EF Core de la base de données agenda
         public AdminDataController(AgendaContext context)
         {
             _context = context;
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // CATÉGORIES DE COURS
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/categories
-        // Retourne toutes les catégories triées par ordre d'affichage
         [HttpGet("categories")]
         public async Task<IActionResult> GetCategories()
         {
@@ -46,8 +27,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/categories
-        // Crée une nouvelle catégorie de cours
         [HttpPost("categories")]
         public async Task<IActionResult> CreateCategorie([FromBody] CreateCategorieDto dto)
         {
@@ -61,8 +40,6 @@ namespace seragenda.Controllers
             return Ok(new { cat.IdCat, cat.NomCat, cat.Ordre });
         }
 
-        // DELETE /api/admin-data/categories/{id}
-        // Supprime une catégorie (échoue si des cours y sont liés)
         [HttpDelete("categories/{id:int}")]
         public async Task<IActionResult> DeleteCategorie(int id)
         {
@@ -74,12 +51,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // COURS
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/cours
-        // Retourne tous les cours avec le nom de leur catégorie parente
         [HttpGet("cours")]
         public async Task<IActionResult> GetCours()
         {
@@ -96,8 +67,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/cours
-        // Crée un nouveau cours dans une catégorie donnée
         [HttpPost("cours")]
         public async Task<IActionResult> CreateCours([FromBody] CreateCoursAdminDto dto)
         {
@@ -118,8 +87,6 @@ namespace seragenda.Controllers
             return Ok(new { cours.IdCours, cours.NomCours, cours.CodeCours });
         }
 
-        // DELETE /api/admin-data/cours/{id}
-        // Supprime un cours (échoue si des liaisons cours-niveau existent)
         [HttpDelete("cours/{id:int}")]
         public async Task<IActionResult> DeleteCours(int id)
         {
@@ -131,12 +98,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // NIVEAUX
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/niveaux
-        // Retourne tous les niveaux d'enseignement triés par ordre
         [HttpGet("niveaux")]
         public async Task<IActionResult> GetNiveaux()
         {
@@ -147,8 +108,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/niveaux
-        // Crée un nouveau niveau d'enseignement
         [HttpPost("niveaux")]
         public async Task<IActionResult> CreateNiveau([FromBody] CreateNiveauAdminDto dto)
         {
@@ -166,8 +125,6 @@ namespace seragenda.Controllers
             return Ok(new { niv.IdNiveau, niv.CodeNiveau, niv.NomNiveau });
         }
 
-        // DELETE /api/admin-data/niveaux/{id}
-        // Supprime un niveau (échoue si des liaisons cours-niveau existent)
         [HttpDelete("niveaux/{id:int}")]
         public async Task<IActionResult> DeleteNiveau(int id)
         {
@@ -179,12 +136,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // PROFESSEURS (lookup uniquement — pas de création ici)
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/professeurs
-        // Retourne la liste des utilisateurs (PROF et ADMIN) pour les sélecteurs
         [HttpGet("professeurs")]
         public async Task<IActionResult> GetProfesseurs()
         {
@@ -196,12 +147,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // LIAISONS COURS-NIVEAU
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/cours-niveaux
-        // Retourne toutes les liaisons cours-niveau avec les noms associés
         [HttpGet("cours-niveaux")]
         public async Task<IActionResult> GetCoursNiveaux()
         {
@@ -223,8 +168,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/cours-niveaux
-        // Crée une nouvelle liaison cours + niveau + professeur
         [HttpPost("cours-niveaux")]
         public async Task<IActionResult> CreateCoursNiveau([FromBody] CreateCoursNiveauAdminDto dto)
         {
@@ -240,8 +183,6 @@ namespace seragenda.Controllers
             return Ok(new { cn.IdCoursNiveau });
         }
 
-        // DELETE /api/admin-data/cours-niveaux/{id}
-        // Supprime une liaison cours-niveau (échoue si des domaines ou planifications y sont liés)
         [HttpDelete("cours-niveaux/{id:int}")]
         public async Task<IActionResult> DeleteCoursNiveau(int id)
         {
@@ -253,12 +194,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // DOMAINES
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/domaines
-        // Retourne tous les domaines avec leur contexte cours et niveau
         [HttpGet("domaines")]
         public async Task<IActionResult> GetDomaines()
         {
@@ -279,8 +214,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/domaines
-        // Crée un nouveau domaine lié à une liaison cours-niveau
         [HttpPost("domaines")]
         public async Task<IActionResult> CreateDomaine([FromBody] CreateDomaineAdminDto dto)
         {
@@ -294,8 +227,6 @@ namespace seragenda.Controllers
             return Ok(new { dom.IdDom, dom.Nom });
         }
 
-        // DELETE /api/admin-data/domaines/{id}
-        // Supprime un domaine (échoue si des sous-domaines ou visées y sont liés)
         [HttpDelete("domaines/{id:int}")]
         public async Task<IActionResult> DeleteDomaine(int id)
         {
@@ -307,11 +238,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // COMPÉTENCES
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/competences
         [HttpGet("competences")]
         public async Task<IActionResult> GetCompetences()
         {
@@ -322,7 +248,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/competences
         [HttpPost("competences")]
         public async Task<IActionResult> CreateCompetence([FromBody] SimpleNomAdminDto dto)
         {
@@ -334,7 +259,6 @@ namespace seragenda.Controllers
             return Ok(new { comp.IdCompetence, comp.NomCompetence });
         }
 
-        // DELETE /api/admin-data/competences/{id}
         [HttpDelete("competences/{id:int}")]
         public async Task<IActionResult> DeleteCompetence(int id)
         {
@@ -346,11 +270,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // APTITUDES
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/aptitudes
         [HttpGet("aptitudes")]
         public async Task<IActionResult> GetAptitudes()
         {
@@ -361,7 +280,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/aptitudes
         [HttpPost("aptitudes")]
         public async Task<IActionResult> CreateAptitude([FromBody] SimpleNomAdminDto dto)
         {
@@ -373,7 +291,6 @@ namespace seragenda.Controllers
             return Ok(new { apt.IdAptitude, apt.NomAptitude });
         }
 
-        // DELETE /api/admin-data/aptitudes/{id}
         [HttpDelete("aptitudes/{id:int}")]
         public async Task<IActionResult> DeleteAptitude(int id)
         {
@@ -385,11 +302,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // NOMS DE VISÉES
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/nom-visees
         [HttpGet("nom-visees")]
         public async Task<IActionResult> GetNomVisees()
         {
@@ -400,7 +312,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/nom-visees
         [HttpPost("nom-visees")]
         public async Task<IActionResult> CreateNomVisee([FromBody] SimpleNomAdminDto dto)
         {
@@ -412,7 +323,6 @@ namespace seragenda.Controllers
             return Ok(new { nv.IdNomVisee, nv.NomVisee1 });
         }
 
-        // DELETE /api/admin-data/nom-visees/{id}
         [HttpDelete("nom-visees/{id:int}")]
         public async Task<IActionResult> DeleteNomVisee(int id)
         {
@@ -424,11 +334,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // VISÉES À MAÎTRISER
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/visees-maitriser
         [HttpGet("visees-maitriser")]
         public async Task<IActionResult> GetViseesMaitriser()
         {
@@ -439,7 +344,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/visees-maitriser
         [HttpPost("visees-maitriser")]
         public async Task<IActionResult> CreateViseesMaitriser([FromBody] SimpleNomAdminDto dto)
         {
@@ -451,7 +355,6 @@ namespace seragenda.Controllers
             return Ok(new { vm.IdViseesMaitriser, vm.NomViseesMaitriser });
         }
 
-        // DELETE /api/admin-data/visees-maitriser/{id}
         [HttpDelete("visees-maitriser/{id:int}")]
         public async Task<IActionResult> DeleteViseesMaitriser(int id)
         {
@@ -463,12 +366,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // SOUS-DOMAINES
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/sous-domaines
-        // Retourne tous les sous-domaines avec le nom du domaine parent
         [HttpGet("sous-domaines")]
         public async Task<IActionResult> GetSousDomaines()
         {
@@ -481,12 +378,9 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/sous-domaines
-        // Crée un nouveau sous-domaine lié à un domaine
         [HttpPost("sous-domaines")]
         public async Task<IActionResult> CreateSousDomaine([FromBody] CreateSousDomaineAdminDto dto)
         {
-            // NomComp est optionnel : un sous-domaine peut ne pas avoir de nom distinct
             var sd = new Sousdomaine { NomComp = dto.NomComp?.Trim() ?? "", IdDomFk = dto.IdDomFk };
             _context.Sousdomaines.Add(sd);
             try { await _context.SaveChangesAsync(); }
@@ -494,7 +388,6 @@ namespace seragenda.Controllers
             return Ok(new { sd.IdSousDomaine, sd.NomComp });
         }
 
-        // DELETE /api/admin-data/sous-domaines/{id}
         [HttpDelete("sous-domaines/{id:int}")]
         public async Task<IActionResult> DeleteSousDomaine(int id)
         {
@@ -506,12 +399,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // VISÉES (objectifs d'apprentissage)
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/visees
-        // Retourne toutes les visées avec leur contexte complet (chaîne cours → domaine → compétence)
         [HttpGet("visees")]
         public async Task<IActionResult> GetVisees()
         {
@@ -541,8 +428,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/visees
-        // Crée une nouvelle visée (objectif d'apprentissage)
         [HttpPost("visees")]
         public async Task<IActionResult> CreateVisee([FromBody] CreateViseeAdminDto dto)
         {
@@ -559,8 +444,6 @@ namespace seragenda.Controllers
             return Ok(new { visee.IdVisee });
         }
 
-        // DELETE /api/admin-data/visees/{id}
-        // Supprime une visée
         [HttpDelete("visees/{id:int}")]
         public async Task<IActionResult> DeleteVisee(int id)
         {
@@ -572,12 +455,6 @@ namespace seragenda.Controllers
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // LIEN VISÉE ↔ VISÉE À MAÎTRISER  (lien_visee_maitrise)
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/lien-visee-maitrise
-        // Retourne toutes les liaisons existantes entre visées et visées à maîtriser
         [HttpGet("lien-visee-maitrise")]
         public async Task<IActionResult> GetLiensViseeMaitrise()
         {
@@ -601,33 +478,25 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/lien-visee-maitrise
-        // Crée le lien entre une visée et une visée à maîtriser
         [HttpPost("lien-visee-maitrise")]
         public async Task<IActionResult> CreateLienViseeMaitrise([FromBody] CreateLienViseeMaitriseDto dto)
         {
-            // Chargement de la visée avec sa collection de visées à maîtriser déjà liées
             var visee = await _context.Visees
                 .Include(v => v.IdViseesMaitriserFks)
                 .FirstOrDefaultAsync(v => v.IdVisee == dto.IdVisee);
             if (visee == null) return NotFound(new { message = "Visée introuvable" });
 
-            // Vérification que la visée à maîtriser cible existe
             var vm = await _context.ViseesMaitrisers.FindAsync(dto.IdViseesMaitriser);
             if (vm == null) return NotFound(new { message = "Visée à maîtriser introuvable" });
 
-            // Vérifie que la liaison n'existe pas déjà pour éviter un doublon
             if (visee.IdViseesMaitriserFks.Any(x => x.IdViseesMaitriser == dto.IdViseesMaitriser))
                 return BadRequest(new { message = "Cette liaison existe déjà" });
 
-            // Ajout de la visée à maîtriser dans la collection EF (génère l'INSERT dans lien_visee_maitrise)
             visee.IdViseesMaitriserFks.Add(vm);
             await _context.SaveChangesAsync();
             return Ok();
         }
 
-        // DELETE /api/admin-data/lien-visee-maitrise/{idVisee}/{idVm}
-        // Supprime le lien entre une visée et une visée à maîtriser
         [HttpDelete("lien-visee-maitrise/{idVisee:int}/{idVm:int}")]
         public async Task<IActionResult> DeleteLienViseeMaitrise(int idVisee, int idVm)
         {
@@ -639,18 +508,11 @@ namespace seragenda.Controllers
             var vm = visee.IdViseesMaitriserFks.FirstOrDefault(x => x.IdViseesMaitriser == idVm);
             if (vm == null) return NotFound();
 
-            // Retrait de la visée à maîtriser de la collection (génère le DELETE dans lien_visee_maitrise)
             visee.IdViseesMaitriserFks.Remove(vm);
             await _context.SaveChangesAsync();
             return Ok();
         }
 
-        // ──────────────────────────────────────────────────────────────────
-        // APPARTENIR VISÉE APTITUDE  (visées_maitriser ↔ aptitude ↔ compétence)
-        // ──────────────────────────────────────────────────────────────────
-
-        // GET /api/admin-data/appartenir-visee-aptitude
-        // Retourne toutes les liaisons visée_maitriser + aptitude + compétence
         [HttpGet("appartenir-visee-aptitude")]
         public async Task<IActionResult> GetAppartenirViseeAptitude()
         {
@@ -670,8 +532,6 @@ namespace seragenda.Controllers
             return Ok(list);
         }
 
-        // POST /api/admin-data/appartenir-visee-aptitude
-        // Crée une liaison visée_maitriser + aptitude + compétence
         [HttpPost("appartenir-visee-aptitude")]
         public async Task<IActionResult> CreateAppartenirViseeAptitude([FromBody] CreateAppartenirDto dto)
         {
@@ -687,8 +547,6 @@ namespace seragenda.Controllers
             return Ok(new { entry.IdAppartenirViseeAptitude });
         }
 
-        // DELETE /api/admin-data/appartenir-visee-aptitude/{id}
-        // Supprime une liaison visée_maitriser + aptitude + compétence
         [HttpDelete("appartenir-visee-aptitude/{id:int}")]
         public async Task<IActionResult> DeleteAppartenirViseeAptitude(int id)
         {
@@ -700,18 +558,12 @@ namespace seragenda.Controllers
         }
     }
 
-    // ──────────────────────────────────────────────────────────────────────
-    // DTOs DU CONTRÔLEUR AdminDataController
-    // ──────────────────────────────────────────────────────────────────────
-
-    // DTO de création pour une catégorie de cours
     public class CreateCategorieDto
     {
         public string NomCat { get; set; } = "";
         public int Ordre { get; set; }
     }
 
-    // DTO de création pour un cours avec sa catégorie et sa couleur d'agenda
     public class CreateCoursAdminDto
     {
         public string NomCours    { get; set; } = "";
@@ -721,7 +573,6 @@ namespace seragenda.Controllers
         public int? IdCatFk       { get; set; }
     }
 
-    // DTO de création pour un niveau d'enseignement
     public class CreateNiveauAdminDto
     {
         public string CodeNiveau { get; set; } = "";
@@ -729,7 +580,6 @@ namespace seragenda.Controllers
         public int? Ordre        { get; set; }
     }
 
-    // DTO de création pour une liaison cours-niveau-professeur
     public class CreateCoursNiveauAdminDto
     {
         public int IdCoursFk  { get; set; }
@@ -737,27 +587,23 @@ namespace seragenda.Controllers
         public int IdProfFk   { get; set; }
     }
 
-    // DTO de création pour un domaine pédagogique
     public class CreateDomaineAdminDto
     {
         public string Nom            { get; set; } = "";
         public int IdCoursNiveauFk   { get; set; }
     }
 
-    // DTO de création pour un sous-domaine
     public class CreateSousDomaineAdminDto
     {
         public string? NomComp { get; set; }
         public int IdDomFk     { get; set; }
     }
 
-    // DTO générique pour les entités ne contenant qu'un nom (compétence, aptitude, nom visée, visée à maîtriser)
     public class SimpleNomAdminDto
     {
         public string Nom { get; set; } = "";
     }
 
-    // DTO de création pour une visée (objectif d'apprentissage)
     public class CreateViseeAdminDto
     {
         public int  IdNomViseeFk    { get; set; }
@@ -766,14 +612,12 @@ namespace seragenda.Controllers
         public int  IdCompFk        { get; set; }
     }
 
-    // DTO de création pour la liaison visée ↔ visée à maîtriser (lien_visee_maitrise)
     public class CreateLienViseeMaitriseDto
     {
         public int IdVisee           { get; set; }
         public int IdViseesMaitriser { get; set; }
     }
 
-    // DTO de création pour la liaison visée_maitriser ↔ aptitude ↔ compétence (appartenir_visee_aptitude)
     public class CreateAppartenirDto
     {
         public int  IdViseesMaitriserFk { get; set; }
